@@ -22,7 +22,7 @@ export default function WardForm() {
     setError(null)
     setSubmitting(true)
     const result = await createWard(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

@@ -7,6 +7,8 @@ import { redirect } from 'next/navigation'
 
 export interface CreatePatientResult {
   error?: string
+  duplicateWarning?: boolean
+  existingPatient?: { id: string; fullName: string; patientCode: string }
 }
 
 export async function createPatient(formData: FormData): Promise<CreatePatientResult> {

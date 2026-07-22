@@ -22,7 +22,7 @@ export default function AddChargeForm({
     setError(null)
     setSubmitting(true)
     const result = await addManualChargeAction(patientId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

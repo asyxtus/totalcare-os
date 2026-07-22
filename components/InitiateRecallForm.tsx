@@ -40,7 +40,7 @@ export default function InitiateRecallForm({ batches }: { batches: BatchOption[]
     setError(null)
     setSubmitting(true)
     const result = await initiateRecall(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

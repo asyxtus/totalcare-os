@@ -18,7 +18,7 @@ export default function CloseShiftForm({ shiftId, openingCash }: { shiftId: stri
     setError(null)
     setSubmitting(true)
     const result = await closeShift(shiftId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

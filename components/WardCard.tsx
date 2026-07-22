@@ -30,7 +30,7 @@ export default function WardCard({ ward }: { ward: Ward }) {
     setError(null)
     setSubmitting(true)
     const result = await createBed(ward.id, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

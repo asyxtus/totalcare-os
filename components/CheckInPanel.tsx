@@ -148,7 +148,7 @@ export default function CheckInPanel({
     setError(null)
     setSubmitting(true)
     const result = await startCheckIn(patientId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
     }
     setSubmitting(false)
@@ -164,7 +164,7 @@ export default function CheckInPanel({
     setError(null)
     setSubmitting(true)
     const result = await collectPaymentAndProceed(activeVisit.id, pendingInvoiceId, remainingDue, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     }
@@ -176,7 +176,7 @@ export default function CheckInPanel({
     setError(null)
     setSubmitting(true)
     const result = await flagEmergencyAndProceed(activeVisit.id, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     }
@@ -187,7 +187,7 @@ export default function CheckInPanel({
     setError(null)
     setSubmitting(true)
     const result = await proceedPastGateOnly(activeVisit.id)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     }

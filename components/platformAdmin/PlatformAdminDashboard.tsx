@@ -181,7 +181,7 @@ function ClinicRow({ clinic, lang, onChanged }: { clinic: ClinicSummary; lang: '
     setBusy(true)
     setError(null)
     const result = await renameClinicAction(clinic.clinicId, name)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
     } else {
       setEditing(false)
@@ -203,7 +203,7 @@ function ClinicRow({ clinic, lang, onChanged }: { clinic: ClinicSummary; lang: '
     setBusy(true)
     setError(null)
     const result = await setClinicActiveAction(clinic.clinicId, !clinic.isActive)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else onChanged()
     setBusy(false)
   }
@@ -315,7 +315,7 @@ function NewClinicTab({ lang, clinics }: { lang: 'fr' | 'en'; clinics: ClinicLis
   async function handleSubmit(formData: FormData) {
     setError(null); setDetail(null); setSuccess(null); setSubmitting(true)
     const result = await provisionClinicAction(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setDetail(result.detail ?? null)
     } else if (result?.success) {
@@ -499,7 +499,7 @@ function AdminRow({ admin, lang, currentAdminId, onChanged }: {
     setBusy(true)
     setError(null)
     const result = await setPlatformAdminActiveAction(admin.id, !admin.isActive)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else onChanged()
     setBusy(false)
   }
@@ -562,7 +562,7 @@ function AdminsTab({ lang, currentAdmin }: { lang: 'fr' | 'en'; currentAdmin: Cu
   async function handleInvite(formData: FormData) {
     setInviteError(null); setInviteSuccess(null); setInviting(true)
     const result = await invitePlatformAdminAction(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setInviteError(result.error)
     } else {
       setInviteSuccess(formData.get('email') as string)

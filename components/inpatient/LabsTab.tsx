@@ -83,7 +83,7 @@ export default function LabsTab({
     setSubmitting(true)
     formData.set('item_type', itemType)
     const result = await orderInpatientLabAction(admissionId, visitId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

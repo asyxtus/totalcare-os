@@ -53,7 +53,7 @@ export default function LabAttachmentUpload({
     }
 
     const result = await recordAttachment(itemId, clinicId, filePath, file.type)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
     } else {
       setHasAttachment(true)
@@ -65,7 +65,7 @@ export default function LabAttachmentUpload({
     setCompleting(true)
     setError(null)
     const result = await completeViaAttachment(itemId)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setCompleting(false)
     } else {

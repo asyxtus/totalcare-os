@@ -88,7 +88,7 @@ export default function CashierCollectForm({
         result = await collectChargesDirectly(group.map(c => c.id), formData, patientId)
       }
 
-      if (result?.error) {
+      if (result && 'error' in result && result.error) {
         lastError = result.error
         break
       }

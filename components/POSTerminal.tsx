@@ -99,11 +99,11 @@ export default function POSTerminal({ products }: { products: Product[] }) {
     formData.set('cart', JSON.stringify(cart.map((l) => ({ product_id: l.productId, quantity: l.quantity }))))
 
     const result = await checkoutPosSale(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {
-      setSuccess({ total, saleId: result.saleId })
+      setSuccess({ total, saleId: 'saleId' in result ? result.saleId : '' })
       setCart([])
       setSubmitting(false)
     }

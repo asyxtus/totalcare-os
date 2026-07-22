@@ -112,7 +112,7 @@ export default function ProductCatalogBrowser({
     setErrors(e => { const n = { ...e }; delete n[tpl.id]; return n })
 
     const result = await importFromTemplate(tpl.id, sale, cost)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setErrors(e => ({ ...e, [tpl.id]: result.error! }))
     } else {
       setImported(s => new Set([...s, tpl.id]))

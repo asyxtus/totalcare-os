@@ -60,7 +60,7 @@ export default function TriageForm({ visitId, clinicId }: TriageFormProps) {
 
     const result = await saveTriageData(visitId, clinicId, formData)
 
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
       return
@@ -79,7 +79,7 @@ export default function TriageForm({ visitId, clinicId }: TriageFormProps) {
   async function confirmDespiteFlags() {
     setSubmitting(true)
     const result = await finalizeTriage(visitId)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     }

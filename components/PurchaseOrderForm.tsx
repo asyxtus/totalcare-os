@@ -32,7 +32,7 @@ export default function PurchaseOrderForm({ suppliers, products }: { suppliers: 
     setError(null)
     setSubmitting(true)
     const result = await createPurchaseOrder(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
     } else {
       setSuccess(true)

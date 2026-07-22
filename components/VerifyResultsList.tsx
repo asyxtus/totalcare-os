@@ -22,7 +22,7 @@ export default function VerifyResultsList({ itemId, results }: { itemId: string;
 
   async function handleVerify(resultId: string) {
     const result = await verifyResult(resultId, itemId)
-    if (result?.success) {
+    if (result && 'success' in result && result.success) {
       setVerified((prev) => ({ ...prev, [resultId]: true }))
     }
   }

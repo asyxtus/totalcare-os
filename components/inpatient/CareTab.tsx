@@ -72,7 +72,7 @@ export default function CareTab({ admissionId, products, tasks }: { admissionId:
     setRxSuccess(false)
     setRxSubmitting(true)
     const result = await createInpatientPrescriptionAction(admissionId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setRxError(result.error)
       setRxSubmitting(false)
     } else {
@@ -88,7 +88,7 @@ export default function CareTab({ admissionId, products, tasks }: { admissionId:
     setTaskError(null)
     setTaskSubmitting(true)
     const result = await recordCareTaskAction(admissionId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setTaskError(result.error)
       setTaskSubmitting(false)
     } else {

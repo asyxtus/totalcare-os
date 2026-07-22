@@ -28,7 +28,7 @@ function TestRow({ test, lang }: { test: ClinicTest; lang: 'fr' | 'en' }) {
   async function handleSave(formData: FormData) {
     setError(null); setPending(true)
     const result = await updateClinicLabTestAction(test.id, formData)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else { router.refresh(); setEditing(false) }
     setPending(false)
   }
@@ -36,7 +36,7 @@ function TestRow({ test, lang }: { test: ClinicTest; lang: 'fr' | 'en' }) {
   async function handleToggle() {
     setError(null); setPending(true)
     const result = await toggleClinicLabTestActiveAction(test.id, !test.is_active)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else router.refresh()
     setPending(false)
   }
@@ -97,7 +97,7 @@ function NewTestForm({ categories, lang, onDone }: { categories: string[]; lang:
   async function handleSubmit(formData: FormData) {
     setError(null); setPending(true)
     const result = await createLabTestAction(formData)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else { router.refresh(); onDone() }
     setPending(false)
   }

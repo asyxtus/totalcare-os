@@ -37,7 +37,7 @@ export default function InlineAdjustPanel({
     formData.set('direction', direction)
     formData.set('batch_id', selectedBatchId)
     const result = await recordStockAdjustment(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

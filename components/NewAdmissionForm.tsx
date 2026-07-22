@@ -31,7 +31,7 @@ export default function NewAdmissionForm({ patients }: { patients: Patient[] }) 
     setSubmitting(true)
     formData.set('patient_id', selectedPatient.id)
     const result = await createDirectAdmission(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

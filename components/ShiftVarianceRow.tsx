@@ -29,7 +29,7 @@ export default function ShiftVarianceRow({ shift }: { shift: Shift }) {
     setSubmitting(true)
     setError(null)
     const result = await reviewShiftVarianceAction(shift.id, notes)
-    if (result?.error) { setError(result.error); setSubmitting(false) }
+    if (result && 'error' in result && result.error) { setError(result.error); setSubmitting(false) }
     else router.refresh()
   }
 

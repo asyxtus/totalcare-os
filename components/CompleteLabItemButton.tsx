@@ -17,7 +17,7 @@ export default function MarkSampleCollectedButton({ itemId }: { itemId: string }
   async function handleClick() {
     setSubmitting(true)
     const result = await markSampleCollected(itemId)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     setSubmitting(false)
   }
 

@@ -16,7 +16,7 @@ export default function RequestDiscountButton({ serviceChargeId, onSuccess }: { 
     setError(null)
     setSubmitting(true)
     const result = await requestDiscountAction(serviceChargeId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

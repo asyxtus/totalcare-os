@@ -33,7 +33,7 @@ function PanelRow({ panel, lang }: { panel: ClinicPanel; lang: 'fr' | 'en' }) {
   async function handleSave(formData: FormData) {
     setError(null); setPending(true)
     const result = await updateClinicLabPanelAction(panel.id, formData)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else { router.refresh(); setEditing(false) }
     setPending(false)
   }
@@ -41,7 +41,7 @@ function PanelRow({ panel, lang }: { panel: ClinicPanel; lang: 'fr' | 'en' }) {
   async function handleToggle() {
     setError(null); setPending(true)
     const result = await toggleClinicLabPanelActiveAction(panel.id, !panel.is_active)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else router.refresh()
     setPending(false)
   }
@@ -118,7 +118,7 @@ function NewPanelForm({ fullCatalog, lang, onDone }: { fullCatalog: CatalogTest[
     setError(null); setPending(true)
     for (const id of selected) formData.append('test_ids', id)
     const result = await createLabPanelAction(formData)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else { router.refresh(); onDone() }
     setPending(false)
   }

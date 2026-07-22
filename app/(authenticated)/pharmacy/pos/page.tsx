@@ -21,7 +21,7 @@ export default async function POSPage() {
     .order('name')
 
   const { data: stockRows, error: stockError } = await supabase.rpc('get_products_with_stock', { p_clinic_id: staff.clinicId })
-  const stockByProductId = new Map((stockRows ?? []).map((r: any) => [r.product_id, r.on_hand]))
+  const stockByProductId = new Map<string, number>((stockRows ?? []).map((r: any) => [r.product_id, Number(r.on_hand ?? 0)]))
 
   // Controlled substances are excluded from the sellable list entirely —
   // not just rejected at checkout. record_pos_sale refuses them
@@ -52,7 +52,7 @@ export default async function POSPage() {
 
       {stockError && (
         <p style={{ fontSize: '12px', color: 'var(--color-critical-text)', background: 'var(--color-critical-bg)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontFamily: 'var(--font-mono)' }}>
-          get_products_with_stock: {stockError.message} — lang==='fr'?'les niveaux de stock affichés ci-dessous sont incorrects':'stock levels shown below may be incorrect' (0 partout).
+          get_products_with_stock: {stockError.message} — {lang==='fr'?'les niveaux de stock affichés ci-dessous sont incorrects (0 partout)':'stock levels shown below may be incorrect (showing 0 everywhere)'}.
         </p>
       )}
 

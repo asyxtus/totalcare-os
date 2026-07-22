@@ -44,7 +44,7 @@ function InsurerForm({ onDone }: { onDone: () => void }) {
     setError(null)
     setSubmitting(true)
     const result = await createInsurerAction(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {
@@ -100,7 +100,7 @@ function ClaimRow({ claim }: { claim: Claim }) {
     else if (action === 'status') result = await updateClaimStatusAction(claim.id, formData)
     else result = await recordClaimPaymentAction(claim.id, formData)
 
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {
@@ -188,7 +188,7 @@ export default function InsuranceTab({ insurers, claims, outstandingInsurers }: 
     setCreatingClaimFor(insurerId)
     setClaimError(null)
     const result = await createClaimAction(insurerId)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setClaimError(result.error)
     } else {
       router.refresh()

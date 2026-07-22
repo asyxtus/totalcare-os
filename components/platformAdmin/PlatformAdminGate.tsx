@@ -22,14 +22,14 @@ export default function PlatformAdminGate({ needsBootstrap }: { needsBootstrap: 
   async function handleSignIn(formData: FormData) {
     setError(null); setSubmitting(true)
     const result = await platformAdminSignInAction(formData)
-    if (result?.error) { setError(result.error); setSubmitting(false) }
+    if (result && 'error' in result && result.error) { setError(result.error); setSubmitting(false) }
     else router.refresh()
   }
 
   async function handleBootstrap(formData: FormData) {
     setError(null); setSubmitting(true)
     const result = await bootstrapFirstAdminAction(formData)
-    if (result?.error) { setError(result.error); setSubmitting(false) }
+    if (result && 'error' in result && result.error) { setError(result.error); setSubmitting(false) }
     else router.refresh()
   }
 

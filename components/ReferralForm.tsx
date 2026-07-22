@@ -98,7 +98,7 @@ export default function ReferralForm({ visitId, consultationId, patientId, onDon
     setError(null)
     setSubmitting(true)
     const result = await createReferralAction(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else if (result?.success) {

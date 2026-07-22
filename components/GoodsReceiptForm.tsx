@@ -47,7 +47,7 @@ export default function GoodsReceiptForm({
     setError(null)
     setSubmitting(true)
     const result = await recordGoodsReceipt(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
     } else {
       setSuccess(true)

@@ -34,7 +34,7 @@ export default function BedsTable({ wards, beds }: { wards: Ward[]; beds: Bed[] 
     setSubmitting(true)
     const wardId = formData.get('ward_id') as string
     const result = await createBed(wardId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

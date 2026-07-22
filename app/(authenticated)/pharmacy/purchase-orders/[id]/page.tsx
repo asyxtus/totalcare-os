@@ -41,8 +41,8 @@ const STATUS_LABELS: Record<string, string> = {
         <div>
           <h1 style={{ fontSize: '18px', fontWeight: 500, margin: 0 }}>{supplier?.name}</h1>
           <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
-            {lang==='fr'?'Commandé le':'Ordered'} {new Date(po.order_date).toLocaleDateString(locale)}
-            {po.expected_delivery_date ? ` · lang==='fr'?'Livraison prévue le':'Expected delivery'} ${new Date(po.expected_delivery_date).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US')}` : ''}
+            {lang==='fr'?'Commandé le':'Ordered'} {new Date(po.order_date).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US')}
+            {po.expected_delivery_date ? ` · ${lang==='fr'?'Livraison prévue le':'Expected delivery'} ${new Date(po.expected_delivery_date).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US')}` : ''}
           </p>
         </div>
       </div>

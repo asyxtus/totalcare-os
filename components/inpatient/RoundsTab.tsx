@@ -36,7 +36,7 @@ export default function RoundsTab({ admissionId, notes, canEdit }: { admissionId
     setError(null)
     setSubmitting(true)
     const result = await recordRoundNoteAction(admissionId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

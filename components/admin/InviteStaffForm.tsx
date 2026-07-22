@@ -24,7 +24,7 @@ export default function InviteStaffForm({ lang, onDone }: { lang: 'fr' | 'en'; o
     setError(null)
     setSubmitting(true)
     const result = await inviteStaffAction(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

@@ -29,7 +29,7 @@ export default function StaffRow({ member, isSelf, lang }: { member: StaffMember
     setError(null)
     setPending(true)
     const result = await updateStaffRoleAction(member.id, newRole)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else router.refresh()
     setPending(false)
   }
@@ -38,7 +38,7 @@ export default function StaffRow({ member, isSelf, lang }: { member: StaffMember
     setError(null)
     setPending(true)
     const result = await toggleStaffActiveAction(member.id, !member.is_active)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else router.refresh()
     setPending(false)
   }

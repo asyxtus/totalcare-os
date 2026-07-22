@@ -19,7 +19,7 @@ export default function ReversePaymentButton({ paymentId, onSuccess }: { payment
     setSubmitting(true)
     setError(null)
     const result = await reversePaymentAction(paymentId, reason)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

@@ -94,7 +94,7 @@ function AppointmentRow({ appt }: { appt: Appointment }) {
   async function handleCancel() {
     setError(null); setPending(true)
     const result = await cancelAppointmentAction(appt.id, cancelReason)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else { router.refresh(); setCancelling(false) }
     setPending(false)
   }
@@ -102,7 +102,7 @@ function AppointmentRow({ appt }: { appt: Appointment }) {
   async function handleNoShow() {
     setError(null); setPending(true)
     const result = await markNoShowAction(appt.id)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else router.refresh()
     setPending(false)
   }

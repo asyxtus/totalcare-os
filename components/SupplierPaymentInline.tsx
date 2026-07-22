@@ -23,7 +23,7 @@ export default function SupplierPaymentInline({ invoiceId }: { invoiceId: string
     setError(null)
     setSubmitting(true)
     const result = await recordSupplierPayment(invoiceId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

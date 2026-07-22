@@ -31,7 +31,7 @@ export default function SupplierReturnForm({ suppliers, batches }: { suppliers: 
     setError(null)
     setSubmitting(true)
     const result = await recordSupplierReturn(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
     } else {
       setSuccess(true)

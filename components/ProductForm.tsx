@@ -23,7 +23,7 @@ export default function ProductForm({ drugClasses }: { drugClasses: DrugClass[] 
     setError(null)
     setSubmitting(true)
     const result = await createProduct(formData)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else {
       setSuccess(true)
       setTimeout(() => setSuccess(false), 2500)

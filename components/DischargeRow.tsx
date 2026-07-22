@@ -32,7 +32,7 @@ export default function DischargeRow({ admission, startExpanded = false, hideHea
     setError(null)
     setSubmitting(true)
     const result = await dischargePatientAction(admission.id, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

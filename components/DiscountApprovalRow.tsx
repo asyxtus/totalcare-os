@@ -28,7 +28,7 @@ export default function DiscountApprovalRow({ discount }: { discount: Discount }
     setSubmitting(true)
     setError(null)
     const result = await approveDiscountAction(discount.id)
-    if (result?.error) { setError(result.error); setSubmitting(false) }
+    if (result && 'error' in result && result.error) { setError(result.error); setSubmitting(false) }
     else router.refresh()
   }
 
@@ -36,7 +36,7 @@ export default function DiscountApprovalRow({ discount }: { discount: Discount }
     setSubmitting(true)
     setError(null)
     const result = await rejectDiscountAction(discount.id, rejectReason)
-    if (result?.error) { setError(result.error); setSubmitting(false) }
+    if (result && 'error' in result && result.error) { setError(result.error); setSubmitting(false) }
     else router.refresh()
   }
 

@@ -17,7 +17,7 @@ export default function InpatientNoteForm({ admissionId }: { admissionId: string
     setError(null)
     setSubmitting(true)
     const result = await recordInpatientNoteAction(admissionId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

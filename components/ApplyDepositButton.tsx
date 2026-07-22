@@ -23,7 +23,7 @@ export default function ApplyDepositButton({
     setError(null)
     setSubmitting(true)
     const result = await applyDepositAction(patientId, invoiceId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

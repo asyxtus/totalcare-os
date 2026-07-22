@@ -21,7 +21,7 @@ export default function SupplierForm() {
     setError(null)
     setSubmitting(true)
     const result = await createSupplier(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
     } else {
       setSuccess(true)

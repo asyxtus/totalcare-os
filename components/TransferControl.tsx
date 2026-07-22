@@ -25,7 +25,7 @@ export default function TransferControl({ visitId, doctors, currentDoctorId }: {
     setSubmitting(true)
     setError(null)
     const result = await transferPatientToDoctor(visitId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

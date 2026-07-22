@@ -44,7 +44,7 @@ export default async function PharmacyPage() {
   const lang = staff.preferredLanguage
   const supabase = await createClient()
 
-  const { data: pendingCount } = await supabase
+  const { count: pendingCount } = await supabase
     .from('prescriptions')
     .select('id', { count: 'exact', head: true })
     .in('status', ['pending', 'partially_dispensed'])

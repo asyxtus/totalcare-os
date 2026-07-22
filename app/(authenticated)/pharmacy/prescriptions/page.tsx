@@ -3,9 +3,9 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentStaff } from '@/lib/auth/getCurrentStaff'
 
-const STATUS_LABELS: Record<string, { label: string; bg: string; text: string }> = {
-  pending: { label: 'En attente', bg: 'var(--color-warning-bg)', text: 'var(--color-warning-text)' },
-  partially_dispensed: { label: 'Partiel', bg: 'var(--color-info-bg, #DCEBF5)', text: 'var(--color-info-text, #2A6D9E)' },
+const STATUS_LABELS: Record<string, { fr: string; en: string; bg: string; text: string }> = {
+  pending: { fr: 'En attente', en: 'Pending', bg: 'var(--color-warning-bg)', text: 'var(--color-warning-text)' },
+  partially_dispensed: { fr: 'Partiel', en: 'Partial', bg: 'var(--color-info-bg, #DCEBF5)', text: 'var(--color-info-text, #2A6D9E)' },
   dispensed: { fr: 'Dispensée', en: 'Dispensed', bg: 'var(--color-success-bg)', text: 'var(--color-success-text)' },
   cancelled: { fr: 'Annulée', en: 'Cancelled', bg: 'var(--color-bg)', text: 'var(--color-text-secondary)' },
 }
@@ -56,7 +56,7 @@ export default async function PrescriptionsHistoryPage() {
                 <span>{patient?.full_name ?? '—'} <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-secondary)' }}>({patient?.patient_code})</span></span>
                 <span style={{ color: 'var(--color-text-secondary)', fontSize: '12px' }}>{drugList || '—'}</span>
                 <span>
-                  <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '999px', background: status.bg, color: status.text }}>{status.label}</span>
+                  <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '999px', background: status.bg, color: status.text }}>{status[lang]}</span>
                   {rx.requires_review && <span style={{ fontSize: '10px', marginLeft: '4px', color: 'var(--color-critical-text)' }}>⚠ révision</span>}
                 </span>
                 <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>{new Date(rx.created_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US')}</span>

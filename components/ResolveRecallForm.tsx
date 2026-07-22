@@ -18,7 +18,7 @@ export default function ResolveRecallForm({ recallId }: { recallId: string }) {
     setError(null)
     setSubmitting(true)
     const result = await resolveRecall(recallId, notes)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

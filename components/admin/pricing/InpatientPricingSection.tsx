@@ -23,7 +23,7 @@ function NursingRateCard({ currentRate, lang }: { currentRate: number | null; la
   async function handleSave(formData: FormData) {
     setError(null); setPending(true)
     const result = await updateNursingRateAction(formData)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else { router.refresh(); setEditing(false) }
     setPending(false)
   }
@@ -81,7 +81,7 @@ function WardRateRow({ ward, lang }: { ward: Ward; lang: 'fr' | 'en' }) {
   async function handleSave(formData: FormData) {
     setError(null); setPending(true)
     const result = await updateWardRateAction(ward.id, formData)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else { router.refresh(); setEditing(false) }
     setPending(false)
   }

@@ -28,7 +28,7 @@ function ServiceRow({ service, lang }: { service: ServicePrice; lang: 'fr' | 'en
   async function handleSavePrice(formData: FormData) {
     setError(null); setPending(true)
     const result = await updateServicePriceAction(service.id, formData)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else { router.refresh(); setEditing(false) }
     setPending(false)
   }
@@ -36,7 +36,7 @@ function ServiceRow({ service, lang }: { service: ServicePrice; lang: 'fr' | 'en
   async function handleToggle() {
     setError(null); setPending(true)
     const result = await toggleServicePriceActiveAction(service.id, !service.is_active)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else router.refresh()
     setPending(false)
   }
@@ -114,7 +114,7 @@ function NewServiceForm({ categories, lang, onDone }: { categories: string[]; la
   async function handleSubmit(formData: FormData) {
     setError(null); setPending(true)
     const result = await createServicePriceAction(formData)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else { router.refresh(); onDone() }
     setPending(false)
   }

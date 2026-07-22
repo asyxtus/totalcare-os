@@ -72,7 +72,7 @@ export default function BookAppointmentForm({
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Patient[]>([])
-  const [selected, setSelected] = useState<Patient | null>(preSelectedPatient ?? null)
+  const [selected, setSelected] = useState<Patient | null>(preSelectedPatient ? { ...preSelectedPatient, phone: null } : null)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -96,7 +96,7 @@ export default function BookAppointmentForm({
     formData.set('patient_id', selected.id)
     setError(null); setPending(true)
     const result = await bookAppointmentAction(formData)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else { router.refresh(); onDone() }
     setPending(false)
   }

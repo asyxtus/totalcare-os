@@ -36,7 +36,7 @@ export default function InlineEditProductPanel({
     setError(null)
     setSubmitting(true)
     const result = await updateProduct(product.product_id, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

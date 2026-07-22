@@ -44,12 +44,12 @@ export default function CollectPaymentForm({
       setSubmitting(false)
       return
     }
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {
       // Open the printable receipt in a new tab
-      if (result?.paymentId) {
+      if ('paymentId' in result && result.paymentId) {
         window.open(`/print/payments/${result.paymentId}`, '_blank')
       }
       router.refresh()

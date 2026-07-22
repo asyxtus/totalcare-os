@@ -27,7 +27,7 @@ export default function AssignBedForm({ admissionId, wards, onDone }: { admissio
     setError(null)
     setSubmitting(true)
     const result = await assignBedAction(admissionId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

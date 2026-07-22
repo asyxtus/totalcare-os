@@ -16,7 +16,7 @@ export default function OpenShiftForm() {
     setError(null)
     setSubmitting(true)
     const result = await openShift(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

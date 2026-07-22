@@ -23,7 +23,7 @@ export default function SupplierInvoiceForm({ suppliers }: { suppliers: Supplier
     setError(null)
     setSubmitting(true)
     const result = await recordSupplierInvoice(formData)
-    if (result?.error) setError(result.error)
+    if (result && 'error' in result && result.error) setError(result.error)
     else {
       setSuccess(true)
       setTimeout(() => setSuccess(false), 2500)

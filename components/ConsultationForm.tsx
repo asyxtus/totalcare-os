@@ -229,7 +229,7 @@ export default function ConsultationForm({
     setError(null)
     setSubmitting(true)
     const result = await completeConsultation(visitId, consultationId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       // "status: admitted" means the admit action already ran and changed the visit
       // status — this is actually success, not an error. Show the back-to-queue link.
       if (result.error.includes('admitted') || result.error.includes('status:')) {

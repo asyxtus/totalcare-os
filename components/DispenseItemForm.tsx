@@ -54,7 +54,7 @@ export default function DispenseItemForm({
     // Inject the override product ID if the pharmacist selected one
     if (overrideProductId) formData.set('product_id_override', overrideProductId)
     const result = await dispensePrescriptionItem(prescriptionId, itemId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

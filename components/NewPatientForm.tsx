@@ -84,7 +84,7 @@ export default function NewPatientForm({ insurers }: { insurers: Insurer[] }) {
       setSubmitting(false)
       return
     }
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     }
@@ -100,7 +100,7 @@ export default function NewPatientForm({ insurers }: { insurers: Insurer[] }) {
     for (const [k, v] of (prevFormData as any).entries()) fd.append(k, v)
     fd.set('confirm_duplicate', 'true')
     const result = await createPatient(fd)
-    if (result?.error) { setError(result.error); setSubmitting(false) }
+    if (result && 'error' in result && result.error) { setError(result.error); setSubmitting(false) }
   }
 
   const inputStyle: React.CSSProperties = {

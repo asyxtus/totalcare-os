@@ -17,7 +17,7 @@ export default function ApproveReviewForm({ prescriptionId }: { prescriptionId: 
     setSubmitting(true)
     setError(null)
     const result = await approvePrescriptionReview(prescriptionId, notes)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

@@ -47,7 +47,7 @@ export default async function RecallDetailPage({
             {batch?.products?.name} — lot {batch?.batch_number}
           </h1>
           <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
-            {lang==='fr'?'Lancé le':'Initiated'} {new Date(recall.initiated_at).toLocaleDateString(locale)} {lang==='fr'?'par':'by'} {initiator?.full_name}
+            {lang==='fr'?'Lancé le':'Initiated'} {new Date(recall.initiated_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US')} {lang==='fr'?'par':'by'} {initiator?.full_name}
           </p>
         </div>
       </div>
@@ -93,7 +93,7 @@ export default async function RecallDetailPage({
               <div>
                 <div style={{ fontSize: '13px' }}>{row.patient_name}</div>
                 <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-                  {row.patient_phone ?? (lang==='fr'?'Pas de téléphone enregistré':'No phone on record')} · {new Date(row.dispensed_at).toLocaleDateString(locale)}
+                  {row.patient_phone ?? (lang==='fr'?'Pas de téléphone enregistré':'No phone on record')} · {new Date(row.dispensed_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US')}
                 </div>
               </div>
               <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>{row.quantity} {lang === 'fr' ? 'unité(s)' : 'unit(s)'}</span>
@@ -116,7 +116,7 @@ export default async function RecallDetailPage({
         <ResolveRecallForm recallId={recall.id} />
       ) : (
         <div style={{ background: 'var(--color-success-bg)', color: 'var(--color-success-text)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', fontSize: '13px' }}>
-          ✓ {lang==='fr'?`Résolu le ${recall.resolved_at ? new Date(recall.resolved_at).toLocaleDateString(locale) : ''}`:`Resolved ${recall.resolved_at ? new Date(recall.resolved_at).toLocaleDateString(locale) : ''}`}{recall.resolved_at ? new Date(recall.resolved_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US') : ''} — {recall.resolution_notes}
+          ✓ {lang==='fr'?'Résolu le':'Resolved'} {recall.resolved_at ? new Date(recall.resolved_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US') : ''} — {recall.resolution_notes}
         </div>
       )}
     </div>

@@ -7,6 +7,17 @@ import { useRouter } from 'next/navigation'
 import { recordMedicationAdministrationAction } from '@/lib/actions/inpatientCare'
 import { useLang } from '@/lib/i18n/LangContext'
 
+interface Administration { id: string; status: string; administered_at?: string | null; notes?: string | null; staff_name?: string | null }
+interface PrescriptionItem {
+  id: string
+  drug_display_name: string
+  dose: string | null
+  route: string | null
+  frequency: string | null
+  dispensed_total: number
+  administrations: Administration[]
+}
+
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   administered: { bg: 'var(--color-success-bg)', text: 'var(--color-success-text)' },
   refused: { bg: 'var(--color-critical-bg)', text: 'var(--color-critical-text)' },
@@ -17,6 +28,7 @@ const STR = {
   fr: {
     administered: 'Administré',
     notYetDispensed: '⏳ Pas encore délivré par la pharmacie — « Administré » est désactivé en attendant.',
+    notDispensedSuffix: ' (pas encore délivré)',
     empty: 'Aucun médicament prescrit pendant ce séjour.',
     dispensedLine: (d: number, a: number) => `Délivré ${d} · Administré ${a}`,
     awaitingLine: (d: number, a: number) => `⏳ En attente de la pharmacie — ${d} délivré(s), ${a} déjà administré(s)`,
@@ -31,6 +43,7 @@ const STR = {
   en: {
     administered: 'Administered',
     notYetDispensed: '⏳ Not yet dispensed by pharmacy — «Administered» is disabled until then.',
+    notDispensedSuffix: ' (not yet dispensed)',
     empty: 'No medications prescribed during this stay.',
     dispensedLine: (d: number, a: number) => `Dispensed ${d} · Administered ${a}`,
     awaitingLine: (d: number, a: number) => `⏳ Awaiting pharmacy — ${d} dispensed, ${a} already administered`,
@@ -57,7 +70,7 @@ function LogAdministrationForm({
     setError(null)
     setSubmitting(true)
     const result = await recordMedicationAdministrationAction(admissionId, itemId, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {
@@ -139,7 +152,7 @@ export default function MARTab({ admissionId, items }: { admissionId: string; it
                       <span style={{ padding: '1px 8px', borderRadius: '999px', background: colors.bg, color: colors.text, marginRight: '6px', fontSize: '11px' }}>{t.statusLabel[a.status] ?? a.status}</span>
                       {a.staff_name}{a.notes ? ` — ${a.notes}` : ''}
                     </span>
-                    <span style={{ color: 'var(--color-text-secondary)' }}>{new Date(a.administered_at).toLocaleString(t.locale)}</span>
+                    <span style={{ color: 'var(--color-text-secondary)' }}>{a.administered_at ? new Date(a.administered_at).toLocaleString(t.locale) : '—'}</span>
                   </div>
                 )
               })}

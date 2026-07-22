@@ -40,7 +40,7 @@ export default function SupplierRow({ supplier, outstandingXaf }: { supplier: Su
     setError(null)
     setSubmitting(true)
     const result = await updateSupplier(supplier.id, formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {

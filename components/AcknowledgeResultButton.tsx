@@ -15,7 +15,7 @@ export default function AcknowledgeResultButton({ resultId }: { resultId: string
     setSubmitting(true)
     setError(null)
     const result = await acknowledgeCriticalResultAction(resultId)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
     } else {
