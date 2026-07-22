@@ -1,0 +1,375 @@
+/* app/globals.css
+   Design tokens for TotalCare OS. Every color used anywhere in the app
+   should reference one of these variables — never a raw hex value in a
+   component. That's what makes dark mode, and any future clinic-branding
+   accent override, work without touching every screen individually.
+   All pairings below are WCAG AA verified (>=4.5:1 for normal text). */
+
+:root {
+  --color-bg: #F3F5F1;
+  --color-surface: #FFFFFF;
+  --color-sidebar: #16211E;
+  --color-sidebar-surface-raised: #22302C;
+
+  --color-text-primary: #16211E;
+  --color-text-secondary: #5C6B65;
+  --color-text-on-dark: #F3F5F1;
+  --color-text-on-dark-secondary: #8A9A94;
+
+  --color-accent: #2F6F62;
+  --color-accent-text-on: #FFFFFF;
+
+  --color-warning-text: #805C29;   /* corrected from initial #B8843B for AA compliance */
+  --color-warning-bg: #FBF1E2;
+
+  --color-critical-text: #A8443E;
+  --color-critical-bg: #FBEAE9;
+
+  --color-success-text: #2F6F62;
+  --color-success-bg: #E9F2EE;
+
+  --color-compliance-gold: #7C6130; /* corrected from initial #9C7A3C for AA compliance */
+
+  --color-border: #DCE3DE;
+  --color-border-subtle: #EEF1EE;
+
+  /* Role identity colors — used only for staff role badges/avatars in the
+     Admin module. Eight roles need to be told apart at a glance in a list;
+     one shared accent color for all of them would defeat that purpose.
+     Kept in the same muted, clinical-but-warm register as the rest of the
+     palette rather than reaching for saturated hues. All pairs AA verified. */
+  --role-admin-bg: #E4E1EA;      --role-admin-text: #4A3F73;
+  --role-doctor-bg: #E9F2EE;     --role-doctor-text: #2F6F62;
+  --role-nurse-bg: #E3EDF5;      --role-nurse-text: #3A6690;
+  --role-pharmacist-bg: #FBF1E2; --role-pharmacist-text: #7C6130;
+  --role-lab-bg: #EFE7F5;        --role-lab-text: #6B4F8C;
+  --role-reception-bg: #F5E8E6;  --role-reception-text: #8C5A50;
+  --role-billing-bg: #E6EAEC;    --role-billing-text: #4F5F66;
+  --role-auditor-bg: #EAEAE2;    --role-auditor-text: #5C5A47;
+
+  --font-ui: var(--font-plex-sans), sans-serif;
+  --font-mono: var(--font-plex-mono), monospace;
+  --font-print: 'Source Serif 4', Georgia, serif;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+}
+
+/* ============================================================
+   DARK THEME TOKENS
+   Applied in two cases: (1) the OS prefers dark AND the user hasn't
+   explicitly chosen light; (2) the user explicitly chose dark,
+   regardless of OS. The two blocks below MUST stay identical —
+   CSS can't share one declaration block between a media query and
+   an attribute selector, so this duplication is deliberate and
+   load-bearing, not an accident to "clean up."
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #16211E;
+    --color-surface: #1F2B26;
+    --color-sidebar: #0A100E;
+    --color-sidebar-surface-raised: #151F1A;
+
+    --color-text-primary: #EDEFEA;
+    --color-text-secondary: #9AA79F;
+
+    --color-accent: #4C9A7E;         /* lightened for legibility on dark bg */
+    --color-accent-text-on: #0D1512;
+
+    --color-warning-text: #D9A55C;
+    --color-warning-bg: #2A2015;
+
+    --color-critical-text: #D97A73;
+    --color-critical-bg: #2A1917;
+
+    --color-success-text: #4C9A7E;
+    --color-success-bg: #17251F;
+
+    --color-compliance-gold: #D9A55C;
+
+    --color-border: #263831;
+    --color-border-subtle: #1C2620;
+
+    --role-admin-bg: #292440;      --role-admin-text: #B3A6D9;
+    --role-doctor-bg: #17251F;     --role-doctor-text: #4C9A7E;
+    --role-nurse-bg: #182430;      --role-nurse-text: #7FAFDB;
+    --role-pharmacist-bg: #2A2015; --role-pharmacist-text: #D9A55C;
+    --role-lab-bg: #251E33;        --role-lab-text: #B599D9;
+    --role-reception-bg: #2A1E1B;  --role-reception-text: #D99A8C;
+    --role-billing-bg: #1E252A;    --role-billing-text: #9AB0BA;
+    --role-auditor-bg: #23231C;    --role-auditor-text: #C4C29E;
+  }
+}
+
+[data-theme="dark"] {
+  --color-bg: #16211E;
+  --color-surface: #1F2B26;
+  --color-sidebar: #0A100E;
+  --color-sidebar-surface-raised: #151F1A;
+
+  --color-text-primary: #EDEFEA;
+  --color-text-secondary: #9AA79F;
+
+  --color-accent: #4C9A7E;
+  --color-accent-text-on: #0D1512;
+
+  --color-warning-text: #D9A55C;
+  --color-warning-bg: #2A2015;
+
+  --color-critical-text: #D97A73;
+  --color-critical-bg: #2A1917;
+
+  --color-success-text: #4C9A7E;
+  --color-success-bg: #17251F;
+
+  --color-compliance-gold: #D9A55C;
+
+  --color-border: #263831;
+  --color-border-subtle: #1C2620;
+
+  --role-admin-bg: #292440;      --role-admin-text: #B3A6D9;
+  --role-doctor-bg: #17251F;     --role-doctor-text: #4C9A7E;
+  --role-nurse-bg: #182430;      --role-nurse-text: #7FAFDB;
+  --role-pharmacist-bg: #2A2015; --role-pharmacist-text: #D9A55C;
+  --role-lab-bg: #251E33;        --role-lab-text: #B599D9;
+  --role-reception-bg: #2A1E1B;  --role-reception-text: #D99A8C;
+  --role-billing-bg: #1E252A;    --role-billing-text: #9AB0BA;
+  --role-auditor-bg: #23231C;    --role-auditor-text: #C4C29E;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  margin: 0;
+}
+
+/* Visible keyboard focus everywhere, no exceptions — required for anyone
+   navigating by keyboard, and genuinely faster for power users doing
+   rapid data entry (a receptionist tabbing through a form). */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   SHARED COMPONENT CLASSES
+   The reason these live here as classes rather than inline styles:
+   inline styles physically cannot express :hover, :focus, :active,
+   or transitions. Every interactive element in the app routes
+   through these (via components/ui/*) so micro-feedback — the
+   thing that makes an interface feel finished — exists in exactly
+   one place. Element-level base rules below also improve legacy
+   inline-styled screens that haven't been migrated yet.
+   ============================================================ */
+
+/* Base: every button and link gets motion, even unmigrated ones */
+button, a {
+  transition: background-color 140ms ease, border-color 140ms ease,
+              color 140ms ease, box-shadow 140ms ease, transform 80ms ease;
+}
+button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+/* ---- Buttons ---- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font-size: 12px; font-weight: 500; font-family: var(--font-ui);
+  padding: 8px 14px; border-radius: var(--radius-sm);
+  border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+  text-decoration: none; line-height: 1.2;
+}
+.btn:disabled { opacity: 0.55; cursor: default; }
+.btn-sm { font-size: 11px; padding: 6px 10px; gap: 5px; }
+
+.btn-primary { background: var(--color-accent); color: var(--color-accent-text-on); }
+.btn-primary:hover:not(:disabled) { background: var(--color-accent-hover, var(--color-accent)); filter: brightness(1.08); }
+
+.btn-secondary { background: transparent; color: var(--color-text-primary); border-color: var(--color-border); }
+.btn-secondary:hover:not(:disabled) { background: var(--color-surface); border-color: var(--color-text-secondary); }
+
+.btn-ghost { background: transparent; color: var(--color-text-secondary); }
+.btn-ghost:hover:not(:disabled) { background: var(--color-surface); color: var(--color-text-primary); }
+
+.btn-danger { background: transparent; color: var(--color-critical-text); border-color: var(--color-border); }
+.btn-danger:hover:not(:disabled) { background: var(--color-critical-bg); border-color: var(--color-critical-text); }
+
+.btn-success { background: transparent; color: var(--color-success-text); border-color: var(--color-border); }
+.btn-success:hover:not(:disabled) { background: var(--color-success-bg); border-color: var(--color-success-text); }
+
+/* ---- Inputs ---- */
+.input {
+  font-size: 13px; font-family: var(--font-ui);
+  padding: 8px 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg); color: var(--color-text-primary);
+  width: 100%;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.input:hover:not(:disabled):not(:focus) { border-color: var(--color-text-secondary); }
+.input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+.input::placeholder { color: var(--color-text-secondary); opacity: 0.7; }
+.input:disabled { opacity: 0.55; }
+
+/* ---- Cards ---- */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+}
+.card-interactive {
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.card-interactive:hover {
+  border-color: var(--color-text-secondary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+/* ---- Badges ---- */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 500;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.badge-neutral { background: var(--color-bg); color: var(--color-text-secondary); border: 1px solid var(--color-border-subtle); }
+.badge-success { background: var(--color-success-bg); color: var(--color-success-text); }
+.badge-warning { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.badge-critical { background: var(--color-critical-bg); color: var(--color-critical-text); }
+.badge-accent { background: color-mix(in srgb, var(--color-accent) 12%, transparent); color: var(--color-accent); }
+
+/* ---- Tab bars (the pattern AdminHub/ReceptionHub/Billing/Admissions all reuse) ---- */
+.tabbar {
+  display: flex; gap: 4px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 1.25rem;
+  overflow-x: auto;
+}
+.tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; font-family: var(--font-ui);
+  padding: 10px 16px; margin-bottom: -1px;
+  border: none; background: none; cursor: pointer;
+  color: var(--color-text-primary); font-weight: 400;
+  border-bottom: 2px solid transparent; white-space: nowrap;
+  transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+.tab:hover { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 5%, transparent); }
+.tab[data-active="true"] { color: var(--color-accent); font-weight: 500; border-bottom-color: var(--color-accent); }
+
+/* ---- Sidebar nav links (AppShell) ---- */
+.nav-link {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 1.25rem; position: relative; text-decoration: none;
+  font-size: 13px;
+  color: var(--color-text-on-dark-secondary);
+  transition: color 140ms ease, background-color 140ms ease;
+}
+.nav-link:hover { color: var(--color-text-on-dark); background: var(--color-sidebar-surface-raised); }
+.nav-link[data-active="true"] { color: var(--color-text-on-dark); }
+.nav-link svg { flex-shrink: 0; opacity: 0.85; }
+.nav-link[data-active="true"] svg { opacity: 1; }
+
+/* ---- Table rows / list rows hover ---- */
+.row-hover { transition: background-color 120ms ease; }
+.row-hover:hover { background: color-mix(in srgb, var(--color-accent) 4%, var(--color-surface)); }
+
+/* ---- Loading spinner (Button loading state) ---- */
+@keyframes tc-spin { to { transform: rotate(360deg); } }
+.spin { animation: tc-spin 0.8s linear infinite; }
+
+/* Respect reduced-motion preference — the pulse-line signature and any
+   transition must check this, not animate unconditionally. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---- Skeleton loading ---- */
+@keyframes tc-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-bg) 50%, var(--color-surface) 75%);
+  background-size: 200% 100%;
+  animation: tc-shimmer 1.4s ease infinite;
+}
+
+/* ============================================================
+   MOBILE RESPONSIVENESS — cascading fixes
+   The app is used mostly on phones. Almost every form input in
+   this codebase sets its own inline font-size (typically 12-13px
+   via style={{...}}), which is BELOW the 16px threshold that iOS
+   Safari uses to decide whether to auto-zoom a focused field. That
+   means, without this, every single tap into a text field anywhere
+   in the app (hundreds of forms) zooms the whole page in, and staff
+   have to manually zoom back out — every time. Inline styles beat
+   normal CSS specificity, so this only works inside a media query
+   with !important, scoped to mobile widths only (desktop keeps its
+   designed sizes).
+   ============================================================ */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Any raw <table> not already wrapped in a horizontally-scrolling
+     container becomes one itself. display:block collapses the table
+     layout into a single scrollable block instead of columns
+     squeezing illegibly or overflowing the viewport. Tables that
+     already sit inside an explicit overflow-x wrapper (the pattern
+     used for wide clinical data grids like vitals/lab history) are
+     unaffected either way since the wrapper already handles it. */
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Fixed-width modals/dialogs (payment collection, confirmations)
+     are commonly hardcoded to ~340-420px, which overflows a small
+     phone (iPhone SE etc. are 320-375px wide) once you account for
+     the dialog's own padding. Cap at the viewport minus a margin. */
+  [role="dialog"], .modal, .dialog-panel {
+    max-width: calc(100vw - 32px) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Multi-column layouts (stat card rows, grid-based forms) that use
+     inline grid-template-columns with several fixed fr tracks don't
+     have a way to be globally overridden — those are fixed case by
+     case in their own components. This covers the generic .tabbar /
+     button-row patterns that route through the shared CSS classes,
+     tightening spacing so more fits without forcing tiny text. */
+  .tab {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}

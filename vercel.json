@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/accrue-inpatient-charges",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}
