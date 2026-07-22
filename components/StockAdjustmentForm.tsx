@@ -29,7 +29,7 @@ export default function StockAdjustmentForm({ batches }: { batches: BatchOption[
     setSubmitting(true)
     formData.set('direction', direction)
     const result = await recordStockAdjustment(formData)
-    if (result?.error) {
+    if (result && 'error' in result && result.error) {
       setError(result.error)
     } else {
       setSuccess(true)
