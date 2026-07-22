@@ -59,7 +59,7 @@ export default function DispenseItemForm({
       setSubmitting(false)
     } else {
       setSubmitting(false)
-      if (result?.serviceChargeId) setDispensedChargeId(result.serviceChargeId)
+      if ('serviceChargeId' in result && result.serviceChargeId) setDispensedChargeId(result.serviceChargeId)
     }
   }
 

@@ -101,7 +101,7 @@ export default function ReferralForm({ visitId, consultationId, patientId, onDon
     if (result && 'error' in result && result.error) {
       setError(result.error)
       setSubmitting(false)
-    } else if (result?.success) {
+    } else if ('success' in result && result.success) {
       setDone({ referralId: result.referralId! })
       router.refresh()
     }
