@@ -27,13 +27,20 @@ export async function getCurrentStaff(): Promise<CurrentStaff> {
 
   const { data: staff } = await supabase
     .from('staff')
-    .select('id, full_name, role, preferred_language, clinic_id, clinics(name)')
+    .select('id, full_name, role, preferred_language, clinic_id, clinics(name, is_active)')
     .eq('auth_user_id', user.id)
     .eq('is_active', true)
     .maybeSingle()
 
   if (!staff) {
     redirect('/login?error=no_staff_record')
+  }
+
+  // A suspended clinic (platform admin toggled it off) blocks every staff
+  // member at that clinic on their very next request — this is the one
+  // place that check needs to live, rather than repeating it on every page.
+  if ((staff.clinics as any)?.is_active === false) {
+    redirect('/login?error=clinic_suspended')
   }
 
   return {

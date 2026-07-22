@@ -1,8 +1,8 @@
 // app/login/page.tsx
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 // Friendly-error mapping: Supabase's raw auth error text is written for
@@ -24,14 +24,33 @@ function friendlyAuthError(message: string, lang: 'fr' | 'en'): string {
     : 'Something went wrong. Please try again.'
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   const [lang, setLang] = useState<'fr' | 'en'>('fr')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Redirects from getCurrentStaff() land back here with a reason —
+  // otherwise a clinic that's been suspended just sees staff bounced to
+  // a blank login screen with no explanation, which reads as a bug
+  // rather than a deliberate account status.
+  useEffect(() => {
+    const reason = searchParams.get('error')
+    if (reason === 'clinic_suspended') {
+      setError(lang === 'fr'
+        ? "L'accès de votre clinique a été suspendu. Contactez votre administrateur. / Your clinic's access has been suspended. Contact your administrator."
+        : "Your clinic's access has been suspended. Contact your administrator.")
+    } else if (reason === 'no_staff_record') {
+      setError(lang === 'fr'
+        ? 'Aucun compte actif trouvé pour cet utilisateur. / No active account found for this user.'
+        : 'No active account found for this user.')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const copy = {
     fr: {
@@ -236,5 +255,13 @@ export default function LoginPage() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   )
 }
