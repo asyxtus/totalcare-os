@@ -545,7 +545,7 @@ function AdminsTab({ lang, currentAdmin }: { lang: 'fr' | 'en'; currentAdmin: Cu
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [inviteError, setInviteError] = useState<string | null>(null)
-  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
+  const [inviteSuccess, setInviteSuccess] = useState<{ email: string; reactivated: boolean } | null>(null)
   const [inviting, setInviting] = useState(false)
 
   function load() {
@@ -565,7 +565,10 @@ function AdminsTab({ lang, currentAdmin }: { lang: 'fr' | 'en'; currentAdmin: Cu
     if (result && 'error' in result && result.error) {
       setInviteError(result.error)
     } else {
-      setInviteSuccess(formData.get('email') as string)
+      setInviteSuccess({
+        email: formData.get('email') as string,
+        reactivated: !!(result && 'reactivated' in result && result.reactivated),
+      })
       load()
     }
     setInviting(false)
@@ -593,7 +596,9 @@ function AdminsTab({ lang, currentAdmin }: { lang: 'fr' | 'en'; currentAdmin: Cu
         {inviteError && <p style={{ fontSize: '12px', color: 'var(--color-critical-text)', margin: '0 0 10px' }}>{inviteError}</p>}
         {inviteSuccess && (
           <p style={{ fontSize: '12px', color: 'var(--color-success-text)', margin: '0 0 10px' }}>
-            {lang === 'fr' ? 'Invitation envoyée à' : 'Invitation sent to'} {inviteSuccess}.
+            {inviteSuccess.reactivated
+              ? (lang === 'fr' ? 'Compte réactivé pour' : 'Account reactivated for')
+              : (lang === 'fr' ? 'Invitation envoyée à' : 'Invitation sent to')} {inviteSuccess.email}.
           </p>
         )}
         <button type="submit" disabled={inviting} style={{

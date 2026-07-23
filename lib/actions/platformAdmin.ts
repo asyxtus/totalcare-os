@@ -153,6 +153,34 @@ export async function invitePlatformAdminAction(formData: FormData) {
   }
 
   const adminClient = createAdminClient()
+
+  // A deactivated admin's Supabase Auth account still exists — deactivating
+  // them only ever flipped is_active on this table, never touched their
+  // auth account. Re-inviting the same email would otherwise fail with
+  // "already registered" and no way forward. platform_admins has its own
+  // email column, so check here first rather than hitting that dead end.
+  const { data: existing } = await adminClient
+    .from('platform_admins')
+    .select('id, is_active, full_name')
+    .eq('email', email)
+    .maybeSingle()
+
+  if (existing?.is_active) {
+    return { error: `${existing.full_name} a déjà un compte administrateur actif. / ${existing.full_name} already has an active admin account.` }
+  }
+  if (existing && !existing.is_active) {
+    const { error: reactivateError } = await adminClient
+      .from('platform_admins')
+      .update({ is_active: true, full_name: fullName })
+      .eq('id', existing.id)
+    if (reactivateError) return { error: `Réactivation impossible. (${reactivateError.message})` }
+
+    await logPlatformAdminAction('reactivate_admin', null, null, { targetName: fullName, viaReinvite: true })
+
+    revalidatePath('/platform-admin')
+    return { success: true, reactivated: true }
+  }
+
   const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName },
     redirectTo: `${getSiteUrl()}/accept-invite`,

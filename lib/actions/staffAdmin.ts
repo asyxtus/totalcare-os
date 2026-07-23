@@ -61,6 +61,74 @@ export async function inviteStaffAction(formData: FormData) {
   })
 
   if (inviteError || !invited?.user) {
+    // "Already registered" doesn't necessarily mean they're stuck — a
+    // previously-deactivated staff member's Supabase Auth account still
+    // exists (deactivating them only ever flipped is_active on our own
+    // table, never touched their auth account). Resolve the existing
+    // auth user by email, and if our staff table has a row for them —
+    // active or not — handle it instead of dead-ending on a generic error.
+    if (inviteError?.message?.includes('already been registered')) {
+      // staff has no email column of its own (email lives on Supabase's
+      // own auth.users); listUsers() is paginated and doesn't take an
+      // email filter in all client versions, so we page through and
+      // match manually — fine at clinic-staff scale.
+      let existingAuthUserId: string | null = null
+      for (let page = 1; page <= 20 && !existingAuthUserId; page++) {
+        const { data: pageData } = await adminClient.auth.admin.listUsers({ page, perPage: 200 })
+        const match = pageData?.users?.find((u) => u.email?.toLowerCase() === email)
+        if (match) existingAuthUserId = match.id
+        if (!pageData?.users || pageData.users.length < 200) break
+      }
+
+      if (existingAuthUserId) {
+        const { data: existingStaff } = await adminClient
+          .from('staff')
+          .select('id, is_active, full_name')
+          .eq('clinic_id', admin.clinicId)
+          .eq('auth_user_id', existingAuthUserId)
+          .maybeSingle()
+
+        if (existingStaff?.is_active) {
+          return { error: `${existingStaff.full_name} a déjà un compte actif dans cette clinique.` }
+        }
+        if (existingStaff && !existingStaff.is_active) {
+          const { error: reactivateError } = await adminClient
+            .from('staff')
+            .update({ is_active: true, full_name: fullName, role, preferred_language: preferredLanguage })
+            .eq('id', existingStaff.id)
+          if (reactivateError) return friendlyError('staff reactivate', 'Impossible de réactiver ce compte.', reactivateError)
+
+          await adminClient.from('audit_log').insert({
+            clinic_id: admin.clinicId, staff_id: admin.staffId, action: 'staff.reactivated',
+            entity_type: 'staff', entity_id: existingStaff.id,
+            details: { full_name: fullName, email, role },
+          })
+
+          revalidatePath('/admin')
+          return { success: true, reactivated: true }
+        }
+
+        // Auth account exists but no staff row at all for this clinic —
+        // create one for the existing account rather than trying (and
+        // failing) to invite an email that's already registered.
+        const { data: newStaffRow, error: staffInsertError } = await adminClient.from('staff').insert({
+          auth_user_id: existingAuthUserId, clinic_id: admin.clinicId,
+          full_name: fullName, role, preferred_language: preferredLanguage, is_active: true,
+        }).select('id').maybeSingle()
+
+        if (staffInsertError) return friendlyError('staff insert (existing auth user)', 'Impossible de créer la fiche personnel.', staffInsertError)
+
+        await adminClient.from('audit_log').insert({
+          clinic_id: admin.clinicId, staff_id: admin.staffId, action: 'staff.invited',
+          entity_type: 'staff', entity_id: newStaffRow?.id ?? null,
+          details: { full_name: fullName, email, role, note: 'linked to pre-existing auth account' },
+        })
+
+        revalidatePath('/admin')
+        return { success: true }
+      }
+    }
+
     return friendlyError(
       'inviteUserByEmail',
       inviteError?.message?.includes('already been registered')
