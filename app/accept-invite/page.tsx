@@ -22,6 +22,7 @@ function AcceptInviteForm() {
   const [checking, setChecking] = useState(true)
   const [linkValid, setLinkValid] = useState(false)
   const [fullName, setFullName] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -30,17 +31,48 @@ function AcceptInviteForm() {
 
   useEffect(() => {
     setLang(navigator.language.startsWith('fr') ? 'fr' : 'en')
-    // The browser client parses #access_token=...&refresh_token=... from
-    // the URL automatically on init and establishes a session — by the
-    // time this resolves, either that succeeded (valid, unexpired link)
-    // or there's no session (expired/already-used/malformed link, which
-    // Supabase reports via #error=... in the URL instead, same as what
-    // an expired invite shows).
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setLinkValid(!!session)
-      setFullName((session?.user?.user_metadata?.full_name as string) ?? null)
+
+    // CRITICAL: don't just check "is there any session" — if this browser
+    // already has an active session (e.g. an admin testing invites while
+    // still logged into their own console session), that stale session
+    // would pass a generic getSession() check, and the password form
+    // below would silently update THAT account instead of the person
+    // this link was actually sent to. Extract the token from the URL's
+    // own hash and explicitly set it as the session, so the link itself
+    // — not whatever happened to already be logged in — determines whose
+    // password gets changed. Any pre-existing session is deliberately
+    // discarded first.
+    async function establishSessionFromLink() {
+      const hash = window.location.hash
+      const params = new URLSearchParams(hash.replace(/^#/, ''))
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+
+      if (!accessToken || !refreshToken) {
+        // No token in the URL at all — sign out any stale session too,
+        // so this never falls back to "whatever was already logged in."
+        await supabase.auth.signOut()
+        setLinkValid(false)
+        setChecking(false)
+        return
+      }
+
+      const { data, error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      })
+
+      if (error || !data.session) {
+        setLinkValid(false)
+      } else {
+        setLinkValid(true)
+        setFullName((data.session.user?.user_metadata?.full_name as string) ?? null)
+        setUserEmail(data.session.user?.email ?? null)
+      }
       setChecking(false)
-    })
+    }
+
+    establishSessionFromLink()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -117,9 +149,14 @@ function AcceptInviteForm() {
         <h1 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 4px', textAlign: 'center' }}>
           {lang === 'fr' ? 'Bienvenue' : 'Welcome'}{fullName ? `, ${fullName}` : ''}
         </h1>
-        <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 1.5rem', textAlign: 'center' }}>
+        <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 4px', textAlign: 'center' }}>
           {lang === 'fr' ? 'Choisissez votre mot de passe pour finaliser votre compte.' : 'Choose your password to finish setting up your account.'}
         </p>
+        {userEmail && (
+          <p style={{ fontSize: '12px', color: 'var(--color-accent)', margin: '0 0 1.5rem', textAlign: 'center', fontWeight: 600 }}>
+            {userEmail}
+          </p>
+        )}
         <form onSubmit={handleSubmit} style={{
           background: 'var(--color-surface)', border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md)', padding: '1.5rem',
