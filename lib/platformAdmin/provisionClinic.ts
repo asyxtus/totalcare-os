@@ -7,6 +7,7 @@
 // logic instead of two copies that quietly drift apart over time.
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getSiteUrl } from '@/lib/siteUrl'
 
 export interface ProvisionClinicInput {
   clinicName: string
@@ -49,6 +50,7 @@ export async function provisionClinicCore(input: ProvisionClinicInput): Promise<
   const email = adminEmail.trim().toLowerCase()
   const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
     data: { full_name: adminFullName.trim() },
+    redirectTo: `${getSiteUrl()}/accept-invite`,
   })
 
   if (inviteError || !invited?.user) {

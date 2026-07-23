@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { provisionClinicCore } from '@/lib/platformAdmin/provisionClinic'
 import { getCurrentPlatformAdmin, canBootstrapFirstAdmin } from '@/lib/platformAdmin/session'
+import { getSiteUrl } from '@/lib/siteUrl'
 
 // Best-effort audit trail — logs the action but never blocks or fails the
 // primary operation if the log write itself has a problem. A missing log
@@ -154,6 +155,7 @@ export async function invitePlatformAdminAction(formData: FormData) {
   const adminClient = createAdminClient()
   const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName },
+    redirectTo: `${getSiteUrl()}/accept-invite`,
   })
   if (inviteError || !invited?.user) {
     return { error: `Invitation impossible. (${inviteError?.message})` }

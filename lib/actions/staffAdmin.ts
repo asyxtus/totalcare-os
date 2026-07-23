@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentStaff } from '@/lib/auth/getCurrentStaff'
+import { getSiteUrl } from '@/lib/siteUrl'
 import { ALL_ROLES } from '@/lib/roleMeta'
 import type { StaffRole } from '@/lib/types'
 
@@ -56,6 +57,7 @@ export async function inviteStaffAction(formData: FormData) {
 
   const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName },
+    redirectTo: `${getSiteUrl()}/accept-invite`,
   })
 
   if (inviteError || !invited?.user) {
