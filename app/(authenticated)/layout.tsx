@@ -18,6 +18,8 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
       staffName={staff.fullName}
       staffInitials={initials}
       staffRole={staff.role}
+      primaryRole={staff.primaryRole}
+      availableRoles={staff.availableRoles}
       lang={staff.preferredLanguage}
     >
       {children}

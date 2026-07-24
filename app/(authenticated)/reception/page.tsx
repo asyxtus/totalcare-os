@@ -41,11 +41,25 @@ export default async function ReceptionPage({
     .eq('status', 'waiting_consultation')
     .order('created_at', { ascending: true })
 
-  const { data: doctorList } = await supabase
+  const { data: primaryDoctors } = await supabase
     .from('staff')
     .select('id, full_name')
     .eq('role', 'doctor')
     .eq('is_active', true)
+
+  // Someone whose PRIMARY role is something else but who holds "doctor"
+  // as a secondary role — via the multi-role switcher — should still
+  // show up here as someone a patient can be assigned/checked in to.
+  const { data: secondaryDoctorRows } = await supabase
+    .from('staff_secondary_roles')
+    .select('staff:staff_id(id, full_name, is_active)')
+    .eq('role', 'doctor')
+  const secondaryDoctors = (secondaryDoctorRows ?? [])
+    .map((r: any) => r.staff)
+    .filter((s: any) => s?.is_active)
+
+  const doctorList = [...(primaryDoctors ?? []), ...secondaryDoctors]
+    .filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i)
 
   const todayStart = new Date()
   todayStart.setUTCHours(-1, 0, 0, 0)

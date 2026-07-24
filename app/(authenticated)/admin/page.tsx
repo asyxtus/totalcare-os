@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentStaff } from '@/lib/auth/getCurrentStaff'
 import { fetchAuditLogAction } from '@/lib/actions/auditLog'
 import AdminHub from '@/components/admin/AdminHub'
+import type { StaffRole } from '@/lib/types'
 
 export default async function AdminPage() {
   const staff = await getCurrentStaff()
@@ -57,6 +58,20 @@ export default async function AdminPage() {
       return { ...row, email: data?.user?.email ?? null }
     })
   )
+
+  // Secondary roles per person — fetched in one batch rather than N
+  // queries, then grouped client-side by staff_id for the row component.
+  const staffIds = staffWithEmail.map((s) => s.id)
+  const { data: secondaryRolesRaw } = staffIds.length > 0
+    ? await supabase.from('staff_secondary_roles').select('staff_id, role').in('staff_id', staffIds)
+    : { data: [] }
+  const secondaryRolesByStaffId = new Map<string, StaffRole[]>()
+  for (const row of secondaryRolesRaw ?? []) {
+    const list = secondaryRolesByStaffId.get(row.staff_id) ?? []
+    list.push(row.role as StaffRole)
+    secondaryRolesByStaffId.set(row.staff_id, list)
+  }
+  const staffWithRoles = staffWithEmail.map((s) => ({ ...s, secondary_roles: secondaryRolesByStaffId.get(s.id) ?? [] }))
 
   const { data: services } = await supabase
     .from('service_prices')
@@ -112,7 +127,7 @@ export default async function AdminPage() {
 
       <AdminHub
         role="admin"
-        staff={staffWithEmail}
+        staff={staffWithRoles}
         currentStaffId={staff.staffId}
         services={services ?? []}
         clinicTests={(clinicTests ?? []) as any}

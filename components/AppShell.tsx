@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useNetworkStatus, usePendingSyncCount } from '@/lib/hooks/useNetworkStatus'
 import PreferenceToggles from '@/components/PreferenceToggles'
+import RoleSwitcher from '@/components/RoleSwitcher'
 import { LangProvider } from '@/lib/i18n/LangContext'
 import type { StaffRole } from '@/lib/types'
 
@@ -55,11 +56,13 @@ interface AppShellProps {
   staffName: string
   staffInitials: string
   staffRole: StaffRole
+  primaryRole?: StaffRole
+  availableRoles?: StaffRole[]
   lang: 'fr' | 'en'
   children: React.ReactNode
 }
 
-export default function AppShell({ clinicName, staffName, staffInitials, staffRole, lang, children }: AppShellProps) {
+export default function AppShell({ clinicName, staffName, staffInitials, staffRole, primaryRole, availableRoles, lang, children }: AppShellProps) {
   const pathname = usePathname()
   const isOnline = useNetworkStatus()
   const pendingSync = usePendingSyncCount()
@@ -105,6 +108,9 @@ export default function AppShell({ clinicName, staffName, staffInitials, staffRo
         </div>
 
         <div style={{ padding: '0 1.25rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {availableRoles && availableRoles.length > 1 && (
+            <RoleSwitcher currentRole={staffRole} availableRoles={availableRoles} lang={lang} />
+          )}
           <PreferenceToggles lang={lang} />
           <NetworkIndicator isOnline={isOnline} lang={lang} />
           {pendingSync > 0 && <SyncBadge count={pendingSync} lang={lang} />}
@@ -114,18 +120,23 @@ export default function AppShell({ clinicName, staffName, staffInitials, staffRo
       {/* MOBILE TOP BAR + BOTTOM TAB BAR — shown only below 768px */}
       <div className="mobile-topbar" style={{
         display: 'none', background: 'var(--color-sidebar)', padding: '14px 16px',
-        alignItems: 'center', justifyContent: 'space-between',
+        alignItems: 'center', justifyContent: 'space-between', gap: '10px',
       }}>
         <div>
           <p style={{ color: 'var(--color-text-on-dark)', fontSize: '13px', fontWeight: 500, margin: 0 }}>{clinicName}</p>
           <NetworkIndicator isOnline={isOnline} lang={lang} compact />
         </div>
-        <div style={{
-          width: '28px', height: '28px', borderRadius: '50%', background: 'var(--color-accent)',
-          color: 'var(--color-accent-text-on)', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', fontSize: '11px', fontWeight: 500,
-        }} aria-label={staffName}>
-          {staffInitials}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {availableRoles && availableRoles.length > 1 && (
+            <RoleSwitcher currentRole={staffRole} availableRoles={availableRoles} lang={lang} />
+          )}
+          <div style={{
+            width: '28px', height: '28px', borderRadius: '50%', background: 'var(--color-accent)',
+            color: 'var(--color-accent-text-on)', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: '11px', fontWeight: 500, flexShrink: 0,
+          }} aria-label={staffName}>
+            {staffInitials}
+          </div>
         </div>
       </div>
 

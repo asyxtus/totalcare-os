@@ -248,3 +248,74 @@ export async function toggleStaffActiveAction(staffId: string, makeActive: boole
   revalidatePath('/admin')
   return { success: true }
 }
+
+// ─── Multi-role support ─────────────────────────────────────────────────
+
+// Lets the signed-in person switch which of their available roles is
+// currently active — e.g. a nurse who also covers reception can flip
+// between the two. Only allowed into a role they actually hold (their
+// primary role or an explicitly granted secondary one); never trust the
+// client to only ever offer valid options.
+export async function switchActiveRoleAction(newRole: StaffRole) {
+  const staff = await getCurrentStaff()
+
+  if (!staff.availableRoles.includes(newRole)) {
+    return { error: "Vous n'avez pas ce rôle. / You don't hold that role." }
+  }
+
+  const supabase = await createClient()
+  // Switching back to the primary role clears active_role entirely
+  // (NULL) rather than storing the primary role redundantly — keeps
+  // current_staff_role()'s coalesce() doing the same thing it always did
+  // for the common single-role case.
+  const { error } = await supabase
+    .from('staff')
+    .update({ active_role: newRole === staff.primaryRole ? null : newRole })
+    .eq('id', staff.staffId)
+
+  if (error) return friendlyError('switchActiveRole', 'Impossible de changer de rôle.', error)
+
+  revalidatePath('/', 'layout')
+  return { success: true }
+}
+
+// Admin-only: grant or revoke a secondary role for someone else on staff.
+// The person's primary role (staff.role) is untouched either way — this
+// only affects what else they're additionally allowed to switch into.
+export async function setStaffSecondaryRoleAction(staffId: string, role: StaffRole, grant: boolean) {
+  const admin = await getCurrentStaff()
+  if (admin.role !== 'admin') return { error: 'Réservé aux administrateurs. / Admins only.' }
+
+  const supabase = await createClient()
+
+  const { data: target } = await supabase.from('staff').select('role, full_name').eq('id', staffId).eq('clinic_id', admin.clinicId).maybeSingle()
+  if (!target) return { error: 'Personnel introuvable dans cette clinique.' }
+  if (target.role === role) return { error: "C'est déjà son rôle principal. / That's already their primary role." }
+
+  if (grant) {
+    const { error } = await supabase.from('staff_secondary_roles').insert({ staff_id: staffId, role, granted_by: admin.staffId })
+    // A duplicate (already granted) isn't really an error from the
+    // person clicking the button's point of view — treat it as a no-op
+    // success rather than surfacing a unique-constraint message.
+    if (error && !error.message.includes('duplicate')) {
+      return friendlyError('grant secondary role', 'Impossible d\'ajouter ce rôle.', error)
+    }
+  } else {
+    const { error } = await supabase.from('staff_secondary_roles').delete().eq('staff_id', staffId).eq('role', role)
+    if (error) return friendlyError('revoke secondary role', 'Impossible de retirer ce rôle.', error)
+    // If they were actively working AS the role just revoked, drop them
+    // back to their primary role immediately rather than leaving them
+    // switched into a role they no longer hold.
+    await supabase.from('staff').update({ active_role: null }).eq('id', staffId).eq('active_role', role)
+  }
+
+  await supabase.from('audit_log').insert({
+    clinic_id: admin.clinicId, staff_id: admin.staffId,
+    action: grant ? 'staff.secondary_role_granted' : 'staff.secondary_role_revoked',
+    entity_type: 'staff', entity_id: staffId,
+    details: { target_name: target.full_name, role },
+  })
+
+  revalidatePath('/admin')
+  return { success: true }
+}

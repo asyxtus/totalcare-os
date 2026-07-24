@@ -12,6 +12,8 @@ export interface CurrentStaff {
   staffId: string
   fullName: string
   role: StaffRole
+  primaryRole: StaffRole
+  availableRoles: StaffRole[]
   clinicId: string
   clinicName: string
   preferredLanguage: 'fr' | 'en'
@@ -27,7 +29,7 @@ export async function getCurrentStaff(): Promise<CurrentStaff> {
 
   const { data: staff } = await supabase
     .from('staff')
-    .select('id, full_name, role, preferred_language, clinic_id, clinics(name, is_active)')
+    .select('id, full_name, role, active_role, preferred_language, clinic_id, clinics(name, is_active)')
     .eq('auth_user_id', user.id)
     .eq('is_active', true)
     .maybeSingle()
@@ -43,10 +45,25 @@ export async function getCurrentStaff(): Promise<CurrentStaff> {
     redirect('/login?error=clinic_suspended')
   }
 
+  // Every role this person can switch into (primary + any secondary
+  // roles) — mirrors current_staff_available_roles() in the DB so the
+  // switcher UI and the RLS-level validation of a switch request never
+  // disagree about what's actually available.
+  const { data: secondaryRoles } = await supabase
+    .from('staff_secondary_roles')
+    .select('role')
+    .eq('staff_id', staff.id)
+  const availableRoles = Array.from(new Set([staff.role, ...(secondaryRoles ?? []).map((r) => r.role)])) as StaffRole[]
+
   return {
     staffId: staff.id,
+    // Effective role — what every permission check in the app should use.
+    // Mirrors the DB's current_staff_role(): active_role if explicitly
+    // switched, otherwise the primary role.
+    role: (staff.active_role as StaffRole) ?? staff.role,
+    primaryRole: staff.role,
+    availableRoles,
     fullName: staff.full_name,
-    role: staff.role,
     clinicId: staff.clinic_id,
     clinicName: (staff.clinics as any)?.name ?? 'TotalCare OS',
     preferredLanguage: staff.preferred_language ?? 'fr',

@@ -59,11 +59,25 @@ export default async function DoctorPage() {
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     })
 
-  const { data: doctorList } = await supabase
+  const { data: primaryDoctors } = await supabase
     .from('staff')
     .select('id, full_name')
     .eq('role', 'doctor')
     .eq('is_active', true)
+
+  // Someone whose PRIMARY role is something else (e.g. admin) but who
+  // holds "doctor" as a secondary role — via the multi-role switcher —
+  // should still show up here as someone a patient can be assigned to.
+  const { data: secondaryDoctorRows } = await supabase
+    .from('staff_secondary_roles')
+    .select('staff:staff_id(id, full_name, is_active)')
+    .eq('role', 'doctor')
+  const secondaryDoctors = (secondaryDoctorRows ?? [])
+    .map((r: any) => r.staff)
+    .filter((s: any) => s?.is_active)
+
+  const doctorList = [...(primaryDoctors ?? []), ...secondaryDoctors]
+    .filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i)
 
   // My own productivity — last 14 days, split into this week vs last
   // week for the comparison badge, same pattern as the executive

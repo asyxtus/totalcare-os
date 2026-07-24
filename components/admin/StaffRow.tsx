@@ -4,7 +4,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { updateStaffRoleAction, toggleStaffActiveAction } from '@/lib/actions/staffAdmin'
+import { updateStaffRoleAction, toggleStaffActiveAction, setStaffSecondaryRoleAction } from '@/lib/actions/staffAdmin'
 import { ALL_ROLES, ROLE_META, roleLabel, initialsOf } from '@/lib/roleMeta'
 import type { StaffRole } from '@/lib/types'
 
@@ -16,13 +16,16 @@ export interface StaffMember {
   preferred_language: 'fr' | 'en'
   email: string | null
   created_at: string
+  secondary_roles?: StaffRole[]
 }
 
 export default function StaffRow({ member, isSelf, lang }: { member: StaffMember; isSelf: boolean; lang: 'fr' | 'en' }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showSecondaryRoles, setShowSecondaryRoles] = useState(false)
   const meta = ROLE_META[member.role]
+  const secondaryRoles = member.secondary_roles ?? []
 
   async function handleRoleChange(newRole: StaffRole) {
     if (newRole === member.role) return
@@ -38,6 +41,15 @@ export default function StaffRow({ member, isSelf, lang }: { member: StaffMember
     setError(null)
     setPending(true)
     const result = await toggleStaffActiveAction(member.id, !member.is_active)
+    if (result && 'error' in result && result.error) setError(result.error)
+    else router.refresh()
+    setPending(false)
+  }
+
+  async function handleToggleSecondaryRole(role: StaffRole, currentlyGranted: boolean) {
+    setError(null)
+    setPending(true)
+    const result = await setStaffSecondaryRoleAction(member.id, role, !currentlyGranted)
     if (result && 'error' in result && result.error) setError(result.error)
     else router.refresh()
     setPending(false)
@@ -75,6 +87,54 @@ export default function StaffRow({ member, isSelf, lang }: { member: StaffMember
         <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', margin: '2px 0 0', fontFamily: 'var(--font-mono)' }}>
           {member.email ?? '—'}
         </p>
+        {secondaryRoles.length > 0 && (
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '5px' }}>
+            {secondaryRoles.map((r) => {
+              const rMeta = ROLE_META[r]
+              return (
+                <span key={r} style={{
+                  fontSize: '10px', padding: '2px 8px', borderRadius: '999px',
+                  background: `var(${rMeta.bgVar})`, color: `var(${rMeta.textVar})`, opacity: 0.85,
+                }}>
+                  + {roleLabel(r, lang)}
+                </span>
+              )
+            })}
+          </div>
+        )}
+        {!isSelf && (
+          <button
+            onClick={() => setShowSecondaryRoles((v) => !v)}
+            style={{ fontSize: '10px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0 0' }}
+          >
+            {showSecondaryRoles
+              ? (lang === 'fr' ? 'Masquer les rôles supplémentaires' : 'Hide additional roles')
+              : (lang === 'fr' ? '+ Gérer les rôles supplémentaires' : '+ Manage additional roles')}
+          </button>
+        )}
+        {showSecondaryRoles && !isSelf && (
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px', padding: '8px', background: 'var(--color-bg)', borderRadius: 'var(--radius-sm)' }}>
+            {ALL_ROLES.filter((r) => r !== member.role).map((r) => {
+              const granted = secondaryRoles.includes(r)
+              const rMeta = ROLE_META[r]
+              return (
+                <button
+                  key={r}
+                  onClick={() => handleToggleSecondaryRole(r, granted)}
+                  disabled={pending}
+                  style={{
+                    fontSize: '10px', padding: '3px 9px', borderRadius: '999px', cursor: pending ? 'wait' : 'pointer',
+                    border: granted ? `1px solid var(${rMeta.textVar})` : '1px solid var(--color-border)',
+                    background: granted ? `var(${rMeta.bgVar})` : 'transparent',
+                    color: granted ? `var(${rMeta.textVar})` : 'var(--color-text-secondary)',
+                  }}
+                >
+                  {granted ? '✓ ' : '+ '}{roleLabel(r, lang)}
+                </button>
+              )
+            })}
+          </div>
+        )}
         {error && <p style={{ fontSize: '11px', color: 'var(--color-critical-text)', margin: '4px 0 0' }}>{error}</p>}
       </div>
 
