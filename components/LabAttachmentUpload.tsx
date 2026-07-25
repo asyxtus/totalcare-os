@@ -53,19 +53,22 @@ export default function LabAttachmentUpload({
     }
 
     const result = await recordAttachment(itemId, clinicId, filePath, file.type)
-    if (result && 'error' in result && result.error) {
+    if (result?.error) {
       setError(result.error)
     } else {
       setHasAttachment(true)
     }
     setUploading(false)
+    // Clear the input so selecting the same filename again (e.g. retaking
+    // a photo with the same auto-generated name) still fires onChange.
+    e.target.value = ''
   }
 
   async function handleComplete() {
     setCompleting(true)
     setError(null)
     const result = await completeViaAttachment(itemId)
-    if (result && 'error' in result && result.error) {
+    if (result?.error) {
       setError(result.error)
       setCompleting(false)
     } else {
@@ -99,7 +102,41 @@ export default function LabAttachmentUpload({
         </div>
       )}
 
-      <input type="file" accept="image/*,application/pdf" onChange={handleFileChange} disabled={uploading} />
+      {/* Two explicit choices instead of one ambiguous file input — this
+          app is used mostly on phones, and the exact behavior of a plain
+          <input type="file"> file picker (whether "Camera" appears as an
+          option, and where) varies unpredictably across iOS Safari vs
+          Android Chrome. "Take photo" uses capture="environment" to jump
+          straight into the rear camera with zero picker menu — one tap,
+          camera opens. "Choose file" is the original behavior, for an
+          already-taken photo or a PDF (which capture can't produce). */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
+        <label style={{
+          flex: 1, textAlign: 'center', padding: '10px', border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-sm)', fontSize: '13px', cursor: uploading ? 'not-allowed' : 'pointer',
+          background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', opacity: uploading ? 0.6 : 1,
+        }}>
+          📷 {lang === 'fr' ? 'Prendre une photo' : 'Take photo'}
+          <input
+            type="file" accept="image/*" capture="environment"
+            onChange={handleFileChange} disabled={uploading}
+            style={{ display: 'none' }}
+          />
+        </label>
+        <label style={{
+          flex: 1, textAlign: 'center', padding: '10px', border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-sm)', fontSize: '13px', cursor: uploading ? 'not-allowed' : 'pointer',
+          background: 'var(--color-surface)', color: 'var(--color-text-primary)', opacity: uploading ? 0.6 : 1,
+        }}>
+          🖼 {lang === 'fr' ? 'Choisir un fichier' : 'Choose file'}
+          <input
+            type="file" accept="image/*,application/pdf"
+            onChange={handleFileChange} disabled={uploading}
+            style={{ display: 'none' }}
+          />
+        </label>
+      </div>
+
       {uploading && <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '6px' }}>{lang==='fr'?'Téléversement…':'Uploading…'}</p>}
       {error && <p style={{ fontSize: '12px', color: 'var(--color-critical-text)', marginTop: '6px' }}>{error}</p>}
 
