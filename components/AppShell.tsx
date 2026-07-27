@@ -12,6 +12,7 @@ import {
 import { useNetworkStatus, usePendingSyncCount } from '@/lib/hooks/useNetworkStatus'
 import PreferenceToggles from '@/components/PreferenceToggles'
 import RoleSwitcher from '@/components/RoleSwitcher'
+import LogoutButton from '@/components/LogoutButton'
 import { LangProvider } from '@/lib/i18n/LangContext'
 import type { StaffRole } from '@/lib/types'
 
@@ -113,11 +114,18 @@ export default function AppShell({ clinicName, staffName, staffInitials, staffRo
           )}
           <PreferenceToggles lang={lang} />
           <NetworkIndicator isOnline={isOnline} lang={lang} />
+          <LogoutButton lang={lang} />
           {pendingSync > 0 && <SyncBadge count={pendingSync} lang={lang} />}
         </div>
       </nav>
 
-      {/* MOBILE TOP BAR + BOTTOM TAB BAR — shown only below 768px */}
+      {/* MOBILE TOP BAR + BOTTOM TAB BAR — shown only below 768px.
+          The avatar is now a tap-to-open menu (staff name + sign out)
+          instead of a static circle — <details>/<summary> is used
+          deliberately here rather than useState, matching the same
+          pattern already used for "Flag as emergency" in CheckInPanel:
+          no click-outside-to-close JS needed, the browser handles it,
+          and it degrades gracefully with zero extra state to manage. */}
       <div className="mobile-topbar" style={{
         display: 'none', background: 'var(--color-sidebar)', padding: '14px 16px',
         alignItems: 'center', justifyContent: 'space-between', gap: '10px',
@@ -130,13 +138,27 @@ export default function AppShell({ clinicName, staffName, staffInitials, staffRo
           {availableRoles && availableRoles.length > 1 && (
             <RoleSwitcher currentRole={staffRole} availableRoles={availableRoles} lang={lang} />
           )}
-          <div style={{
-            width: '28px', height: '28px', borderRadius: '50%', background: 'var(--color-accent)',
-            color: 'var(--color-accent-text-on)', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', fontSize: '11px', fontWeight: 500, flexShrink: 0,
-          }} aria-label={staffName}>
-            {staffInitials}
-          </div>
+          <details className="mobile-avatar-menu" style={{ position: 'relative' }}>
+            <summary style={{
+              width: '28px', height: '28px', borderRadius: '50%', background: 'var(--color-accent)',
+              color: 'var(--color-accent-text-on)', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', fontSize: '11px', fontWeight: 500, flexShrink: 0,
+              listStyle: 'none', cursor: 'pointer',
+            }} aria-label={staffName}>
+              {staffInitials}
+            </summary>
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50,
+              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)', padding: '10px 14px', minWidth: '160px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+            }}>
+              <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 8px', whiteSpace: 'nowrap' }}>
+                {staffName}
+              </p>
+              <LogoutButton lang={lang} compact />
+            </div>
+          </details>
         </div>
       </div>
 
@@ -194,6 +216,11 @@ export default function AppShell({ clinicName, staffName, staffInitials, staffRo
           .mobile-tabbar { display: flex !important; }
           main { padding-bottom: 5rem !important; } /* clear the fixed bottom tab bar */
         }
+        /* Hide the default browser-drawn disclosure triangle on the
+           avatar <summary> — it's meant to look like a plain tappable
+           avatar, not an expandable list item. */
+        .mobile-avatar-menu > summary::-webkit-details-marker { display: none; }
+        .mobile-avatar-menu > summary { list-style: none; }
       `}</style>
     </div>
   )
