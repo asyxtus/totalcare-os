@@ -38,6 +38,9 @@ Vous recevrez un email d'invitation avec un lien pour définir votre mot de pass
 **Changer la langue et le thème**
 En bas du menu latéral gauche, deux commandes permettent de basculer entre Français et English, et entre les thèmes Clair, Sombre ou Système (suit votre appareil). Ce réglage est personnel et s'applique immédiatement à tout l'écran.
 
+**Se déconnecter**
+Le lien **Se déconnecter** se trouve en bas du menu latéral (sur ordinateur) ou en appuyant sur votre avatar en haut de l'écran (sur mobile), à côté de votre nom.
+
 **Naviguer dans l'application**
 Le menu latéral gauche affiche uniquement les modules auxquels votre rôle a accès — les autres ne sont pas masqués par erreur, vous n'avez simplement pas les droits pour y accéder. Sur mobile, le même menu est accessible en faisant glisser horizontalement la barre du bas.
     `,
@@ -47,8 +50,54 @@ You will receive an invitation email with a link to set your password. This link
 **Changing language and theme**
 At the bottom of the left sidebar, two controls let you switch between French and English, and between Light, Dark, or System theme (follows your device). This setting is personal and applies immediately across the whole screen.
 
+**Signing out**
+The **Sign out** link is at the bottom of the left sidebar (on desktop) or by tapping your avatar at the top of the screen (on mobile), next to your name.
+
 **Navigating the app**
 The left sidebar only shows modules your role can access — others aren't hidden by mistake, you simply don't have permission to access them. On mobile, the same navigation is accessible by scrolling the bottom bar horizontally.
+    `,
+  },
+
+  {
+    id: 'multi-role-switching',
+    section: 'Premiers pas', sectionEn: 'Getting started',
+    title: 'Travailler avec plusieurs rôles',
+    titleEn: 'Working with multiple roles',
+    roles: ['admin', 'doctor', 'nurse', 'pharmacist', 'lab_technician', 'receptionist', 'billing_clerk', 'auditor'],
+    tags: ['rôle', 'role', 'switcher', 'changer de rôle', 'switch role', 'polyvalent', 'multi-role', 'rôle secondaire', 'secondary role'],
+    content: `
+Dans une petite clinique, une même personne assume souvent plusieurs fonctions — une infirmière qui couvre aussi l'accueil, un médecin qui gère aussi l'administration. Le système permet à un administrateur de vous accorder un **rôle secondaire** en plus de votre rôle principal.
+
+**Comment ça fonctionne**
+Vous gardez un seul rôle "actif" à la fois — vous ne cumulez pas les deux à chaque instant, vous **changez de casquette**. Cela évite toute ambiguïté sur ce que vous êtes en train de faire, et chaque action reste soumise aux mêmes contrôles de sécurité que d'habitude.
+
+**Changer de rôle actif**
+Si un rôle secondaire vous a été accordé, un menu déroulant apparaît dans le menu latéral (ordinateur) ou dans la barre du haut (mobile), à côté des autres réglages. Il n'apparaît **que** si vous avez réellement plus d'un rôle — si vous ne le voyez pas, c'est que vous n'avez qu'un seul rôle pour le moment.
+
+Sélectionnez le rôle sous lequel vous souhaitez travailler. Le menu de navigation à gauche se met à jour immédiatement pour refléter ce que ce rôle peut voir et faire.
+
+**Demander un rôle secondaire**
+Seul un administrateur peut vous accorder un rôle secondaire. Demandez-lui de le faire depuis **Administration** → **Personnel**, sur votre fiche.
+
+**Pour les administrateurs : accorder un rôle secondaire**
+Dans **Administration** → **Personnel**, sur la fiche de la personne concernée, cliquez **+ Gérer les rôles supplémentaires**. Une liste de rôles apparaît sous forme de pastilles cliquables — cliquez sur un rôle pour l'accorder, cliquez à nouveau pour le retirer. Cette option n'est pas disponible sur votre propre fiche, pour des raisons de sécurité — un autre administrateur doit vous accorder un rôle supplémentaire, vous ne pouvez pas vous l'accorder vous-même.
+    `,
+    contentEn: `
+In a small clinic, one person often covers more than one function — a nurse who also covers reception, a doctor who also handles administration. An administrator can grant you a **secondary role** in addition to your primary one.
+
+**How it works**
+You keep exactly one "active" role at a time — you don't hold both simultaneously, you **switch hats**. This keeps every action unambiguous about what you're doing, and each action stays subject to the same security checks as always.
+
+**Switching your active role**
+If a secondary role has been granted to you, a dropdown appears in the left sidebar (desktop) or the top bar (mobile), next to the other settings. It only appears if you actually hold more than one role — if you don't see it, you currently have just the one.
+
+Select the role you want to work as. The left-hand navigation menu updates immediately to reflect what that role can see and do.
+
+**Requesting a secondary role**
+Only an administrator can grant you a secondary role. Ask them to do so from **Administration** → **Staff**, on your entry.
+
+**For administrators: granting a secondary role**
+In **Administration** → **Staff**, on the relevant person's entry, click **+ Manage additional roles**. A list of roles appears as clickable pills — click a role to grant it, click again to remove it. This option isn't available on your own entry, for security reasons — another administrator has to grant you an additional role, you can't grant it to yourself.
     `,
   },
 
@@ -75,6 +124,9 @@ Si le patient est en état d'urgence, cliquez **Signaler comme urgence** dans le
 
 **Que faire si l'encaissement échoue mais que le patient a déjà payé ?**
 Il peut arriver que le paiement soit enregistré côté serveur mais que l'écran ne se soit pas mis à jour. Si le statut reste bloqué sur "En attente de paiement" alors que le patient a payé, un bouton **Continuer** apparaît automatiquement. Cliquez-le sans re-payer.
+
+**Qui peut encaisser un paiement ?**
+L'encaissement est réservé aux rôles Administrateur, Réceptionniste et Agent de facturation. Un médecin ou une infirmière qui a besoin d'encaisser occasionnellement doit se voir accorder un rôle secondaire par un administrateur (voir *Travailler avec plusieurs rôles* dans Premiers pas), puis basculer sur ce rôle avant d'encaisser.
     `,
     contentEn: `
 **Full flow for a cash patient**
@@ -90,6 +142,9 @@ If the patient is in an emergency state, click **Flag as emergency** in the paym
 
 **What if payment collection fails but the patient already paid?**
 It can happen that payment registers server-side but the screen doesn't update. If the status stays stuck on "Awaiting payment" when the patient has already paid, a **Continue** button appears automatically. Click it without paying again.
+
+**Who can collect a payment?**
+Payment collection is limited to the Admin, Receptionist, and Billing Clerk roles. A doctor or nurse who occasionally needs to collect a payment must be granted a secondary role by an administrator (see *Working with multiple roles* under Getting Started), then switch to that role before collecting.
     `,
   },
 
@@ -152,7 +207,7 @@ Si un patient avec le même numéro CNI existe déjà dans la clinique, l'enregi
 - **Annuler** — pour corriger le numéro
 
 **Patients couverts par une assurance**
-Lors de la création, changez la **Catégorie de paiement** en "Régime employeur" ou "Assurance privée". Un formulaire de couverture apparaît. Sélectionnez l'assureur (doit être configuré dans Facturation → Assurance), entrez le numéro de police et le titulaire si différent du patient.
+Le formulaire d'assurance n'apparaît que si vous changez d'abord la **Catégorie de paiement** — elle est réglée sur "Comptant" par défaut. Changez-la en "Régime employeur", "CNPS" ou "Assurance privée" pour faire apparaître le formulaire de couverture. Sélectionnez l'assureur (doit être configuré dans Facturation → Assurance ; il n'apparaît dans la liste que s'il correspond au type de catégorie choisi), entrez le numéro de police et le titulaire si différent du patient.
 
 **Rechercher un patient**
 La barre de recherche filtre par nom, code patient (ex. PAT-0042) ou numéro de téléphone. La recherche est instantanée dès 2 caractères.
@@ -168,7 +223,7 @@ If a patient with the same national ID already exists in the clinic, registratio
 - **Cancel** — to correct the number
 
 **Insurance-covered patients**
-When creating a patient, change the **Payment category** to "Employer scheme" or "Private insurance". A coverage form appears. Select the insurer (must be configured in Billing → Insurance), enter the policy number and policyholder name if different from the patient.
+The coverage form only appears once you change the **Payment category** first — it defaults to "Cash". Change it to "Employer scheme", "CNPS", or "Private insurance" to reveal the coverage form. Select the insurer (must be configured in Billing → Insurance; it only appears in the list if it matches the category type you chose), enter the policy number and policyholder name if different from the patient.
 
 **Searching for a patient**
 The search bar filters by name, patient code (e.g. PAT-0042), or phone number. Search is instant from 2 characters.
@@ -222,7 +277,7 @@ Click **Complete triage**. The patient automatically moves to the doctor queue.
     title: 'Conduire une consultation (SOAP)',
     titleEn: 'Conducting a consultation (SOAP)',
     roles: ['doctor', 'admin'],
-    tags: ['consultation', 'SOAP', 'diagnostic', 'diagnosis', 'ordonnance', 'prescription', 'ICD', 'CIM-10', 'laboratoire', 'lab', 'admission'],
+    tags: ['consultation', 'SOAP', 'diagnostic', 'diagnosis', 'ordonnance', 'prescription', 'ICD', 'CIM-10', 'laboratoire', 'lab', 'admission', 'saisie libre', 'free text'],
     content: `
 La consultation utilise le format SOAP : Subjectif, Objectif, Évaluation, Plan.
 
@@ -230,7 +285,9 @@ La consultation utilise le format SOAP : Subjectif, Objectif, Évaluation, Plan.
 Choisissez un modèle (Maladies courantes, Prénatal, Suivi de l'enfant, Examen annuel) pour pré-remplir les champs avec des guides de saisie adaptés. Vous pouvez toujours modifier le contenu librement.
 
 **Ordonnance**
-Ajoutez des médicaments depuis le stock de la pharmacie (recherche par nom) ou en texte libre pour les médicaments hors stock. Pour chaque médicament : dose, fréquence, durée, quantité. Le système vérifie les allergies connues du patient et affiche une alerte si un médicament correspond à une allergie déclarée.
+Ajoutez des médicaments depuis le stock de la pharmacie (recherche par nom), ou en **saisie libre** pour tout ce que la pharmacie n'a pas — rupture de stock ou médicament simplement hors catalogue. Pour chaque médicament : dose, fréquence, durée, quantité. Le système vérifie les allergies connues du patient et affiche une alerte si un médicament correspond à une allergie déclarée.
+
+Quand un médicament sélectionné dans le stock est épuisé, un lien **"Prescrire quand même (saisie libre)"** apparaît directement sous son nom — cliquez dessus pour basculer cette ligne en saisie libre sans perdre ce que vous aviez déjà commencé à taper. Le bouton **"Saisie libre (hors catalogue)"** en haut de chaque carte médicament fait la même bascule à tout moment, même pour un médicament qui n'est pas en rupture. Un médicament en saisie libre n'est jamais déduit du stock — le patient l'achètera ailleurs.
 
 **Examens de laboratoire**
 Cochez les bilans ou tests à prescrire. Ils apparaîtront immédiatement dans la file du laboratoire. Vous pouvez aussi saisir des examens externes (IRM, biopsie) en texte libre — ceux-ci ne génèrent pas de frais dans le système.
@@ -251,7 +308,9 @@ The consultation uses the SOAP format: Subjective, Objective, Assessment, Plan.
 Choose a template (Common illnesses, Antenatal, Well-child, Annual physical) to pre-fill fields with appropriate prompts. You can always modify the content freely.
 
 **Prescription**
-Add medications from pharmacy stock (search by name) or as free text for off-stock medications. For each medication: dose, frequency, duration, quantity. The system checks the patient's known allergies and displays an alert if a medication matches a declared allergy.
+Add medications from pharmacy stock (search by name), or via **manual entry** for anything the pharmacy doesn't have — out of stock, or simply not in the catalog. For each medication: dose, frequency, duration, quantity. The system checks the patient's known allergies and displays an alert if a medication matches a declared allergy.
+
+When a medication selected from stock is out of stock, a **"Prescribe anyway (type manually)"** link appears directly under its name — click it to switch that row to manual entry without losing anything you'd already typed. The **"Type manually (not in catalog)"** button at the top of each medication card makes the same switch at any time, even for a medication that isn't out of stock. A manually-entered medication is never deducted from stock — the patient will buy it elsewhere.
 
 **Laboratory tests**
 Check the panels or tests to order. They will immediately appear in the laboratory queue. You can also enter external tests (MRI, biopsy) as free text — these do not generate charges in the system.
@@ -283,6 +342,8 @@ Ouvrez **Pharmacie** → **Dispensation**. Les ordonnances en attente apparaisse
 **Dispenser article par article**
 Pour chaque médicament de l'ordonnance, cliquez **Délivrer**. Le système propose les lots disponibles en ordre FIFO (le plus proche de la péremption en premier). Entrez la quantité à délivrer et le prix unitaire (pré-rempli depuis le stock). Un **témoin** doit être sélectionné pour les substances contrôlées.
 
+Un médicament prescrit en **saisie libre** (hors catalogue ou en rupture au moment de la consultation) n'apparaît pas dans cette file — il n'y a rien à dispenser depuis le stock, le patient l'achète ailleurs.
+
 **Sécurité MAR**
 Si un médicament est admis (patient hospitalisé), il ne peut pas être marqué "Administré" dans la feuille MAR tant que la pharmacie n'a pas dispensé au moins la quantité administrée. Ce contrôle est automatique.
 
@@ -298,6 +359,8 @@ Open **Pharmacy** → **Dispensing**. Pending prescriptions appear on the left. 
 
 **Dispensing item by item**
 For each medication in the prescription, click **Dispense**. The system proposes available batches in FIFO order (closest to expiry first). Enter the quantity to dispense and unit price (pre-filled from stock). A **witness** must be selected for controlled substances.
+
+A medication prescribed via **manual entry** (not in the catalog, or out of stock at the time of the consultation) does not appear in this queue — there's nothing to dispense from stock, the patient buys it elsewhere.
 
 **MAR safety**
 If a medication is for an admitted patient, it cannot be marked "Administered" in the MAR sheet until the pharmacy has dispensed at least the administered quantity. This check is automatic.
@@ -321,6 +384,9 @@ After dispensing, a **Print label** link appears on each item. The label include
 **Inventaire et seuils**
 L'écran **Inventaire** affiche tous les produits avec leur stock actuel, leur seuil de réapprovisionnement et leur statut. Les produits en stock faible (sous le seuil) ou épuisés sont filtrables via les boutons en haut.
 
+**Modifier un produit**
+Cliquez le crayon ✎ sur un produit pour ouvrir le formulaire d'édition en ligne. Tous les champs (nom, classe thérapeutique, forme, unité, code-barres, prix, seuil) sont modifiables ensemble. L'unité (ex. flacon, boîte, comprimé) est obligatoire — un produit sans unité ne peut pas être enregistré.
+
 **Créer une commande fournisseur**
 Dans **Commandes**, cliquez **+ Nouvelle commande**. Sélectionnez le fournisseur, ajoutez les produits et quantités souhaitées. La commande est d'abord en brouillon — validez-la puis marquez-la **Envoyée** quand elle part chez le fournisseur.
 
@@ -336,6 +402,9 @@ Si un lot est défectueux ou contaminé, allez dans **Rappels** et initiez un ra
     contentEn: `
 **Inventory and thresholds**
 The **Inventory** screen shows all products with their current stock, reorder threshold, and status. Products with low stock (below threshold) or out of stock are filterable via the buttons at the top.
+
+**Editing a product**
+Click the pencil ✎ on a product to open the inline edit form. All fields (name, drug class, dosage form, unit, barcode, price, threshold) are editable together. Unit (e.g. vial, box, tablet) is required — a product without a unit cannot be saved.
 
 **Creating a supplier order**
 In **Orders**, click **+ New order**. Select the supplier, add the desired products and quantities. The order starts as a draft — validate it then mark it **Sent** when it leaves for the supplier.
@@ -359,41 +428,49 @@ If a batch is defective or contaminated, go to **Recalls** and initiate a recall
     title: 'Traiter les examens de laboratoire',
     titleEn: 'Processing laboratory tests',
     roles: ['lab_technician', 'admin', 'doctor'],
-    tags: ['labo', 'lab', 'résultats', 'results', 'valider', 'verify', 'anormal', 'abnormal', 'critique', 'critical', 'bilan', 'panel'],
+    tags: ['labo', 'lab', 'résultats', 'results', 'valider', 'verify', 'anormal', 'abnormal', 'critique', 'critical', 'bilan', 'panel', 'photo', 'pièce jointe', 'attachment', 'terminés', 'completed'],
     content: `
-**File d'attente laboratoire**
-L'écran **Laboratoire** affiche les demandes en attente, triées par ordre d'arrivée. Chaque demande montre le patient, le type d'examen et le prescripteur.
+**Deux onglets : File active et Terminés**
+L'écran **Laboratoire** est organisé en deux onglets. **File active** regroupe tout ce qui demande une action de votre part maintenant : examens en attente de prélèvement, en cours, et résultats saisis en attente de validation. **Terminés** est un historique de consultation — tous les examens déjà validés ou complétés, pour retrouver un résultat passé sans encombrer la file active.
+
+Dans les deux onglets, les examens prescrits ensemble pour un même patient sont regroupés sous une seule carte avec son nom et le nombre d'examens, plutôt que répétés ligne par ligne. La date **et l'heure** de la prescription sont affichées sur chaque groupe.
 
 **Marquer comme prélevé**
 Cliquez **Marquer comme prélevé** dès que l'échantillon est collecté. Cela indique au médecin que l'examen est en cours.
 
-**Saisir les résultats**
-Cliquez sur la demande pour ouvrir le formulaire de résultats. Pour les tests quantitatifs, entrez la valeur numérique — le système compare automatiquement aux plages de référence et signale les valeurs anormales ou critiques. Pour les tests qualitatifs, sélectionnez le résultat dans la liste.
+**Saisir les résultats — deux méthodes**
+Pour les tests individuels, entrez la valeur numérique ou qualitative directement — le système compare automatiquement aux plages de référence et signale les valeurs anormales ou critiques.
+
+Pour un bilan complet (NFS, bandelette urinaire…), une **photo du résultat imprimé par l'analyseur** peut remplacer la saisie ligne par ligne. Deux options : **📷 Prendre une photo**, qui ouvre directement l'appareil photo du téléphone, ou **🖼 Choisir un fichier**, pour une photo déjà prise ou un PDF. Une fois la photo attachée, cliquez **✓ Terminer avec cette pièce jointe** pour clôturer l'examen — sans ce clic, l'examen reste en attente même si le fichier est bien enregistré. Le nom du fichier attaché est cliquable et ouvre la photo dans un nouvel onglet.
 
 **Valeurs critiques**
 Une valeur critique (hors des limites de sécurité configurées) est mise en évidence en rouge. Elle doit être communiquée immédiatement au médecin prescripteur — le système vous y invite mais ne peut pas remplacer l'appel téléphonique.
 
 **Valider les résultats**
-Après vérification, cliquez **Valider**. Les résultats validés deviennent visibles dans la fiche du patient et dans la consultation du médecin. Les résultats non validés restent marqués "(non validé)" sur les impressions.
+Après vérification, cliquez **Valider**. Les résultats validés deviennent visibles dans la fiche du patient et dans la consultation du médecin, et basculent dans l'onglet **Terminés**. Les résultats non validés restent marqués "(non validé)" sur les impressions. Un examen complété par photo n'a rien à valider individuellement — la pièce jointe elle-même fait foi.
 
 **Tests externes**
 Les examens prescrits comme "externes" (IRM, biopsie, etc.) n'apparaissent pas dans votre file — ils ont été envoyés à un laboratoire externe. Leurs résultats peuvent être attachés à la fiche du patient sous forme de document.
     `,
     contentEn: `
-**Laboratory queue**
-The **Laboratory** screen shows pending requests, sorted by arrival order. Each request shows the patient, test type, and requesting doctor.
+**Two tabs: Active Queue and Completed**
+The **Laboratory** screen is organized into two tabs. **Active Queue** groups everything that needs your action right now: tests awaiting sample collection, in progress, and results entered awaiting verification. **Completed** is a lookup history — every test already verified or completed, so you can find a past result without cluttering the active queue.
+
+In both tabs, tests ordered together for the same patient are grouped under one card with their name and test count, rather than repeated row by row. The date **and time** of the order are shown on each group.
 
 **Marking as collected**
 Click **Mark as collected** as soon as the sample is taken. This tells the doctor the test is underway.
 
-**Entering results**
-Click on the request to open the results form. For quantitative tests, enter the numeric value — the system automatically compares against reference ranges and flags abnormal or critical values. For qualitative tests, select the result from the list.
+**Entering results — two methods**
+For individual tests, enter the numeric or qualitative value directly — the system automatically compares against reference ranges and flags abnormal or critical values.
+
+For a complete panel (CBC, urinalysis strip…), a **photo of the analyzer's printed result** can replace entering each value by hand. Two options: **📷 Take photo**, which opens the phone's camera directly, or **🖼 Choose file**, for an already-taken photo or a PDF. Once the photo is attached, click **✓ Complete with this attachment** to close out the test — without that click, the test stays pending even though the file is saved correctly. The attached filename is clickable and opens the photo in a new tab.
 
 **Critical values**
 A critical value (outside the configured safety limits) is highlighted in red. It must be communicated immediately to the requesting doctor — the system prompts you to do so but cannot replace the phone call.
 
 **Verifying results**
-After checking, click **Verify**. Verified results become visible in the patient's record and in the doctor's consultation. Unverified results remain marked "(not verified)" on printouts.
+After checking, click **Verify**. Verified results become visible in the patient's record and in the doctor's consultation, and move into the **Completed** tab. Unverified results remain marked "(not verified)" on printouts. A test completed via photo has nothing to individually verify — the attachment itself is the record.
 
 **External tests**
 Tests ordered as "external" (MRI, biopsy, etc.) do not appear in your queue — they were sent to an external laboratory. Their results can be attached to the patient's record as a document.
@@ -421,6 +498,9 @@ Chaque patient admis a un dossier avec cinq onglets :
 - **Laboratoire** — prescrire et consulter les résultats d'examens
 - **Soins** — prescrire des médicaments supplémentaires et consigner les tâches de soins
 
+**Laboratoire depuis le dossier d'hospitalisation**
+Chaque examen en cours affiche un lien **Ouvrir →** qui mène directement à sa page de saisie de résultat ou de pièce jointe — pas besoin de repasser par l'écran Laboratoire général pour retrouver un examen prescrit depuis l'admission.
+
 **Facturation journalière automatique**
 Les frais d'hébergement (tarif du service + soins infirmiers) sont calculés automatiquement chaque nuit à 1h00. Vous n'avez rien à saisir — le total apparaît dans la facture du patient.
 
@@ -441,6 +521,9 @@ Each admitted patient has a record with five tabs:
 - **Round notes** — enter observations from rounds (doctor, nurse, specialist)
 - **Laboratory** — order and view test results
 - **Care** — prescribe additional medications and log care tasks
+
+**Laboratory from the inpatient record**
+Every test in progress shows an **Open →** link that goes straight to its result-entry or attachment-upload page — no need to go back to the general Laboratory screen to find a test that was ordered from the admission.
 
 **Automatic daily billing**
 Accommodation charges (ward rate + nursing care) are calculated automatically every night at 1:00 AM. You don't need to enter anything — the total appears in the patient's invoice.
@@ -510,7 +593,7 @@ From any finalised payment, a **Print receipt** link is available. The receipt i
     title: 'Configurer la clinique (tarifs, services, personnel)',
     titleEn: 'Configuring the clinic (pricing, services, staff)',
     roles: ['admin'],
-    tags: ['tarif', 'pricing', 'service', 'personnel', 'staff', 'inviter', 'invite', 'rôle', 'role', 'laboratoire', 'lab', 'hospitalisation', 'ward', 'désactiver', 'deactivate'],
+    tags: ['tarif', 'pricing', 'service', 'personnel', 'staff', 'inviter', 'invite', 'rôle', 'role', 'laboratoire', 'lab', 'hospitalisation', 'ward', 'désactiver', 'deactivate', 'rôle secondaire', 'secondary role'],
     content: `
 **Tarifs des services**
 Dans **Administration** → onglet **Services**, configurez les types de consultation et leurs tarifs. Chaque service a un code unique (généré automatiquement depuis le nom, modifiable). Les services désactivés n'apparaissent plus dans les formulaires de check-in.
@@ -522,7 +605,10 @@ L'onglet **Laboratoire** permet de configurer les tests et bilans disponibles po
 L'onglet **Hospitalisation** permet de configurer les tarifs journaliers par service, ainsi qu'un tarif de soins infirmiers commun à tous les services. Ces tarifs s'appliquent automatiquement via la facturation nocturne.
 
 **Gérer le personnel**
-L'onglet **Personnel** liste tous les membres actifs. Pour inviter un nouveau membre, cliquez **Inviter** — ils recevront un email avec un lien pour définir leur mot de passe. Vous pouvez changer le rôle d'un membre à tout moment. Désactiver un compte révoque immédiatement sa session active (le membre est déconnecté en quelques secondes).
+L'onglet **Personnel** liste tous les membres actifs. Pour inviter un nouveau membre, cliquez **Inviter** — ils recevront un email avec un lien pour définir leur mot de passe. Vous pouvez changer le rôle principal d'un membre à tout moment. Désactiver un compte révoque immédiatement sa session active (le membre est déconnecté en quelques secondes). Si vous désactivez puis réinvitez la même personne, le système réactive automatiquement son compte existant plutôt que d'échouer sur "adresse déjà utilisée".
+
+**Rôles secondaires**
+En plus de son rôle principal, un membre peut se voir accorder un ou plusieurs **rôles secondaires** — utile dans une petite clinique où le personnel est polyvalent (une infirmière qui couvre aussi l'accueil, par exemple). Sur la fiche de la personne, cliquez **+ Gérer les rôles supplémentaires** et sélectionnez les rôles à accorder ou retirer. La personne bascule ensuite elle-même entre ses rôles via le sélecteur dans son propre menu — voir *Travailler avec plusieurs rôles* dans Premiers pas. Vous ne pouvez pas vous accorder de rôle secondaire à vous-même, par sécurité.
 
 **Rôles disponibles**
 Chaque rôle donne accès à des modules spécifiques : Réceptionniste (réception, patients, rendez-vous), Médecin (consultation, admissions), Infirmier(ère) (triage, soins, admissions), Pharmacien (pharmacie), Technicien de labo (laboratoire), Agent de facturation (facturation), Auditeur (journal d'audit uniquement), Administrateur (tout).
@@ -538,7 +624,10 @@ The **Laboratory** tab lets you configure the tests and panels available for thi
 The **Inpatient** tab lets you configure daily rates per ward, as well as a nursing care rate common to all wards. These rates are applied automatically via nightly billing.
 
 **Managing staff**
-The **Staff** tab lists all active members. To invite a new member, click **Invite** — they will receive an email with a link to set their password. You can change a member's role at any time. Deactivating an account immediately revokes their active session (the member is logged out within seconds).
+The **Staff** tab lists all active members. To invite a new member, click **Invite** — they will receive an email with a link to set their password. You can change a member's primary role at any time. Deactivating an account immediately revokes their active session (the member is logged out within seconds). If you deactivate and later re-invite the same person, the system automatically reactivates their existing account rather than failing on "address already in use".
+
+**Secondary roles**
+Beyond their primary role, a staff member can be granted one or more **secondary roles** — useful in a small clinic where staff cover more than one function (a nurse who also covers reception, for instance). On the person's entry, click **+ Manage additional roles** and select roles to grant or remove. The person then switches between their own roles via the selector in their own menu — see *Working with multiple roles* under Getting Started. You cannot grant yourself a secondary role, for security reasons.
 
 **Available roles**
 Each role gives access to specific modules: Receptionist (reception, patients, appointments), Doctor (consultation, admissions), Nurse (triage, care, admissions), Pharmacist (pharmacy), Lab Technician (laboratory), Billing Clerk (billing), Auditor (audit log only), Admin (everything).
@@ -592,13 +681,16 @@ Consultations themselves (SOAP notes) are not in the audit log — they are in t
     title: 'Problèmes fréquents et solutions',
     titleEn: 'Common problems and solutions',
     roles: ['admin', 'receptionist', 'doctor', 'nurse', 'pharmacist', 'lab_technician', 'billing_clerk'],
-    tags: ['erreur', 'error', 'bloqué', 'stuck', 'bug', 'problème', 'problem', 'paiement', 'payment', 'stock', 'session'],
+    tags: ['erreur', 'error', 'bloqué', 'stuck', 'bug', 'problème', 'problem', 'paiement', 'payment', 'stock', 'session', 'rôle', 'role'],
     content: `
 **La visite est bloquée sur "En attente de paiement" alors que le patient a payé**
 Rechargez la page. Si le statut ne change pas, un bouton **Continuer** devrait apparaître — le paiement a été enregistré mais l'écran ne s'est pas mis à jour. Cliquez Continuer.
 
 **Je ne vois pas un patient dans la liste**
 Vérifiez que vous cherchez dans la bonne clinique. Si vous êtes en charge de plusieurs cliniques, votre accès est limité à celle liée à votre compte. Contactez votre administrateur si vous pensez avoir accès à une autre clinique.
+
+**Une action m'est refusée alors que je devrais normalement y avoir droit**
+Si un rôle secondaire vous a été accordé, vérifiez que vous êtes bien basculé sur ce rôle — le sélecteur de rôle se trouve en bas du menu latéral (ordinateur) ou dans la barre du haut (mobile). Chaque action reste soumise au rôle **actuellement actif**, pas seulement à ce que vous avez le droit de faire en théorie.
 
 **Un médicament ne peut pas être marqué "Administré" dans le MAR**
 Le médicament doit d'abord être dispensé par la pharmacie. Le bouton reste désactivé tant que la pharmacie n'a pas délivré au moins la dose à administrer.
@@ -613,7 +705,7 @@ Vérifiez le dossier spam. Si l'email n'est pas là, l'administrateur peut véri
 Chaque service doit avoir un code unique. Le code est généré automatiquement depuis le nom — si deux services ont des noms similaires, modifiez manuellement le code proposé pour le rendre unique.
 
 **Les résultats de laboratoire n'apparaissent pas chez le médecin**
-Les résultats ne sont visibles qu'une fois **validés** par le technicien de laboratoire. Les résultats saisis mais non validés restent en attente.
+Les résultats ne sont visibles qu'une fois **validés** par le technicien de laboratoire (ou, pour un examen complété par photo, une fois la pièce jointe marquée terminée). Les résultats saisis mais non validés restent en attente, dans l'onglet File active du Laboratoire.
     `,
     contentEn: `
 **The visit is stuck on "Awaiting payment" even though the patient has paid**
@@ -621,6 +713,9 @@ Reload the page. If the status doesn't change, a **Continue** button should appe
 
 **I can't find a patient in the list**
 Check that you're searching in the correct clinic. If you manage multiple clinics, your access is limited to the one linked to your account. Contact your administrator if you believe you should have access to another clinic.
+
+**I'm being denied an action I should normally be allowed to do**
+If you've been granted a secondary role, check that you've actually switched to it — the role selector is at the bottom of the left sidebar (desktop) or in the top bar (mobile). Every action stays subject to whichever role is **currently active**, not just what you're allowed to do in theory.
 
 **A medication can't be marked "Administered" in the MAR**
 The medication must first be dispensed by the pharmacy. The button stays disabled until the pharmacy has delivered at least the dose to be administered.
@@ -635,7 +730,7 @@ Check the spam folder. If the email isn't there, the administrator can verify th
 Each service must have a unique code. The code is auto-generated from the name — if two services have similar names, manually edit the suggested code to make it unique.
 
 **Lab results don't appear for the doctor**
-Results are only visible once **verified** by the lab technician. Results entered but not verified remain pending.
+Results are only visible once **verified** by the lab technician (or, for a test completed via photo, once the attachment is marked complete). Results entered but not verified remain pending, in the Laboratory's Active Queue tab.
     `,
   },
 
