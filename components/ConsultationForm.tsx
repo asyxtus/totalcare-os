@@ -71,6 +71,9 @@ const STR = {
     fromStock: 'Stock de la pharmacie',
     extDrug: 'Médicament externe (texte libre)',
     drugPh: 'Nom du médicament',
+    freetextHint: "Ce médicament ne sera pas déduit du stock — utilisez ceci pour tout ce que la pharmacie n'a pas (rupture de stock ou hors catalogue). Le patient l'achètera ailleurs.",
+    typeManually: '✎ Saisie libre (hors catalogue)',
+    chooseFromStock: '↺ Choisir dans le stock',
     dosePh: 'Posologie',
     freqPh: 'Fréquence',
     durPh: 'Durée (j)',
@@ -111,6 +114,9 @@ const STR = {
     fromStock: 'Pharmacy stock',
     extDrug: 'External medication (free text)',
     drugPh: 'Medication name',
+    freetextHint: "This medication won't be deducted from stock — use this for anything the pharmacy doesn't have (out of stock or not in the catalog). The patient will buy it elsewhere.",
+    typeManually: '✎ Type manually (not in catalog)',
+    chooseFromStock: '↺ Choose from stock',
     dosePh: 'Dose',
     freqPh: 'Frequency',
     durPh: 'Duration (d)',
@@ -416,18 +422,35 @@ export default function ConsultationForm({
                           )}
                         </div>
                       )}
+                      {/* Nudge toward free-text mode right where an out-of-
+                          stock/off-catalog need would actually surface —
+                          the toggle button alone (top-right of the card)
+                          was easy to miss entirely. */}
+                      {outOfStock && (
+                        <button type="button" onClick={() => updateRxRow(i, { mode: 'freetext', productId: '', freetextName: selectedProduct?.name ?? '' })} style={{
+                          fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none',
+                          padding: '4px 0 0', cursor: 'pointer', textDecoration: 'underline',
+                        }}>
+                          {lang === 'fr' ? '→ Prescrire quand même (saisie libre)' : '→ Prescribe anyway (type manually)'}
+                        </button>
+                      )}
                     </>
                   ) : (
-                    <input
-                      name="rx_freetext_name"
-                      value={row.freetextName}
-                      onChange={e => updateRxRow(i, { freetextName: e.target.value })}
-                      placeholder={t.drugPh}
-                      style={{
-                        border: 'none', background: 'transparent', fontSize: '14px', fontWeight: 600,
-                        color: 'var(--color-text-primary)', width: '100%', outline: 'none', padding: 0,
-                      }}
-                    />
+                    <>
+                      <input
+                        name="rx_freetext_name"
+                        value={row.freetextName}
+                        onChange={e => updateRxRow(i, { freetextName: e.target.value })}
+                        placeholder={t.drugPh}
+                        style={{
+                          border: 'none', background: 'transparent', fontSize: '14px', fontWeight: 600,
+                          color: 'var(--color-text-primary)', width: '100%', outline: 'none', padding: 0,
+                        }}
+                      />
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
+                        {t.freetextHint}
+                      </p>
+                    </>
                   )}
                   {row.mode === 'freetext' && <input type="hidden" name="rx_product_id" value="" />}
                   {row.mode === 'catalog' && <input type="hidden" name="rx_freetext_name" value="" />}
@@ -436,11 +459,12 @@ export default function ConsultationForm({
                 {/* Mode toggle + remove */}
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginLeft: '12px', flexShrink: 0 }}>
                   <button type="button" onClick={() => updateRxRow(i, { mode: row.mode === 'catalog' ? 'freetext' : 'catalog', productId: '', freetextName: '' })} style={{
-                    fontSize: '10px', padding: '2px 8px', borderRadius: '999px', cursor: 'pointer',
-                    border: '1px solid var(--color-border)', background: 'none',
-                    color: 'var(--color-text-secondary)',
+                    fontSize: '10px', padding: '3px 9px', borderRadius: '999px', cursor: 'pointer', whiteSpace: 'nowrap',
+                    border: row.mode === 'freetext' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                    background: row.mode === 'freetext' ? 'var(--color-accent)' : 'none',
+                    color: row.mode === 'freetext' ? 'var(--color-accent-text-on)' : 'var(--color-text-secondary)',
                   }}>
-                    {row.mode === 'catalog' ? (lang === 'fr' ? 'hors stock' : 'off-stock') : (lang === 'fr' ? 'du stock' : 'from stock')}
+                    {row.mode === 'catalog' ? t.typeManually : t.chooseFromStock}
                   </button>
                   <button type="button" onClick={() => setRxRows(rows => rows.filter((_, idx) => idx !== i))} style={{
                     fontSize: '14px', width: '24px', height: '24px', display: 'flex', alignItems: 'center',

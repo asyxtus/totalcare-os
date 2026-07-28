@@ -23,6 +23,7 @@ const STR = {
     statusPending: 'En attente de prélèvement',
     statusCollected: 'Prélevé — en cours',
     statusCompleted: 'Résultat saisi — en attente de validation',
+    open: 'Ouvrir →',
     attachmentTitle: 'Terminés via pièce jointe',
     viewAttachment: 'Voir →',
     ordered: 'Prescrit',
@@ -43,6 +44,7 @@ const STR = {
     statusPending: 'Awaiting sample',
     statusCollected: 'Sample collected — in progress',
     statusCompleted: 'Result entered — awaiting verification',
+    open: 'Open →',
     attachmentTitle: 'Completed via Attachment',
     viewAttachment: 'View →',
     ordered: 'Ordered',
@@ -131,16 +133,28 @@ export default function LabsTab({
           {pendingResults.map((r) => (
             <div key={r.id} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', fontSize: '13px',
-              borderBottom: '1px solid var(--color-border-subtle)',
+              borderBottom: '1px solid var(--color-border-subtle)', gap: '10px',
             }}>
               <span>{r.test_name}</span>
-              <span style={{
-                fontSize: '11px', padding: '2px 8px', borderRadius: 'var(--radius-sm)',
-                background: r.status === 'completed' ? 'var(--color-accent)' : 'var(--color-warning-bg)',
-                color: r.status === 'completed' ? 'var(--color-accent-text-on)' : 'var(--color-warning-text)',
-              }}>
-                {r.status === 'completed' ? t.statusCompleted : r.status === 'sample_collected' ? t.statusCollected : t.statusPending}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <span style={{
+                  fontSize: '11px', padding: '2px 8px', borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap',
+                  background: r.status === 'completed' ? 'var(--color-accent)' : 'var(--color-warning-bg)',
+                  color: r.status === 'completed' ? 'var(--color-accent-text-on)' : 'var(--color-warning-text)',
+                }}>
+                  {r.status === 'completed' ? t.statusCompleted : r.status === 'sample_collected' ? t.statusCollected : t.statusPending}
+                </span>
+                {/* This link was missing entirely before — there was no way
+                    to get from this list to the test's own page (where
+                    sample collection, result entry, or attachment upload
+                    actually happens) without already knowing its URL. */}
+                <Link href={`/laboratory/${r.id}`} style={{
+                  fontSize: '12px', color: 'var(--color-accent)', textDecoration: 'none',
+                  border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: '3px 9px', whiteSpace: 'nowrap',
+                }}>
+                  {t.open}
+                </Link>
+              </div>
             </div>
           ))}
         </div>
