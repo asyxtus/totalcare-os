@@ -264,14 +264,14 @@ export async function switchActiveRoleAction(newRole: StaffRole) {
   }
 
   const supabase = await createClient()
-  // Switching back to the primary role clears active_role entirely
-  // (NULL) rather than storing the primary role redundantly — keeps
-  // current_staff_role()'s coalesce() doing the same thing it always did
-  // for the common single-role case.
-  const { error } = await supabase
-    .from('staff')
-    .update({ active_role: newRole === staff.primaryRole ? null : newRole })
-    .eq('id', staff.staffId)
+  // Goes through a validated SECURITY DEFINER function rather than a raw
+  // table update — staff's own UPDATE policy only allows admins to touch
+  // role-related columns, which silently blocked non-admin staff from
+  // switching their own active role (RLS quietly updated zero rows,
+  // no error, which is why this looked like "nothing happens"). The
+  // function re-checks the target role server-side — never trust the
+  // client-side check above alone — and touches only active_role.
+  const { error } = await supabase.rpc('switch_active_role', { p_new_role: newRole })
 
   if (error) return friendlyError('switchActiveRole', 'Impossible de changer de rôle.', error)
 
