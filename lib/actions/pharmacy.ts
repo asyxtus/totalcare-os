@@ -24,7 +24,13 @@ export async function updateProduct(productId: string, formData: FormData) {
     name,
     name_fr: (formData.get('name_fr') as string)?.trim() || name,
     drug_class_id: (formData.get('drug_class_id') as string) || null,
-    dosage_form: (() => { const f = (formData.get('form') as string)?.trim(); const st = (formData.get('strength') as string)?.trim(); return st && f ? `${st} ${f}` : (st || f || null) })(),
+    // Was reconstructing this from 'form'/'strength' fields that only
+    // exist on the separate create-product form — InlineEditProductPanel
+    // never had those inputs, so this always evaluated to null and
+    // silently wiped the product's real dosage form on every edit-panel
+    // save. Now reads the single 'dosage_form' field the edit panel
+    // actually sends.
+    dosage_form: (formData.get('dosage_form') as string)?.trim() || null,
     unit: (formData.get('unit') as string)?.trim() || null,
     barcode: (formData.get('barcode') as string)?.trim() || null,
     sale_price_xaf: parseFloat(salePrice),

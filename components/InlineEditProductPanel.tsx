@@ -10,6 +10,9 @@ interface DrugClass { id: string; name_fr: string }
 interface Product {
   product_id: string
   name: string
+  drug_class_id: string | null
+  dosage_form: string | null
+  unit: string | null
   barcode: string | null
   sale_price_xaf: number
   cost_price_xaf: number | null
@@ -48,11 +51,22 @@ export default function InlineEditProductPanel({
     <form action={handleSubmit} style={{ padding: '10px 14px', background: 'var(--color-bg)' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '8px' }}>
         <input name="name" defaultValue={product.name} placeholder={lang==="fr"?"Nom *":"Name *"} required style={inputStyle} />
-        <select name="drug_class_id" style={inputStyle} defaultValue="">
+        {/* Was hardcoded to defaultValue="" — silently reset the drug class
+            to blank on every single save, regardless of what it was set to
+            before. Now correctly pre-fills the product's current class. */}
+        <select name="drug_class_id" style={inputStyle} defaultValue={product.drug_class_id ?? ''}>
           <option value="">{lang==="fr"?"Classe thérapeutique":"Drug class"}</option>
           {drugClasses.map((d) => <option key={d.id} value={d.id}>{d.name_fr}</option>)}
         </select>
         <input name="barcode" defaultValue={product.barcode ?? ''} placeholder={lang==="fr"?"Code-barres":"Barcode"} style={inputStyle} />
+        {/* These two were missing entirely — updateProduct tried to read
+            them from formData regardless, always got null, and silently
+            (dosage_form) or loudly (unit, which is NOT NULL in the
+            database) wiped the product's real values on every save
+            through this panel. This is the actual fix for the
+            "Impossible de modifier ce produit" error. */}
+        <input name="dosage_form" defaultValue={product.dosage_form ?? ''} placeholder={lang==="fr"?"Forme (ex. 60MG Injectable)":"Dosage form (e.g. 60MG Injectable)"} style={inputStyle} />
+        <input name="unit" defaultValue={product.unit ?? ''} placeholder={lang==="fr"?"Unité (ex. flacon, boîte)":"Unit (e.g. vial, box)"} required style={inputStyle} />
         <input name="reorder_threshold" type="number" defaultValue={product.reorder_threshold} placeholder={lang==="fr"?"Seuil":"Threshold"} style={inputStyle} />
         <input name="cost_price_xaf" type="number" step="any" defaultValue={product.cost_price_xaf ?? ''} placeholder={lang==="fr"?"Coût (FCFA)":"Cost (FCFA)"} style={inputStyle} />
         <input name="sale_price_xaf" type="number" step="any" defaultValue={product.sale_price_xaf} placeholder="Prix de vente *" required style={inputStyle} />
