@@ -10,9 +10,13 @@ interface DrugClass { id: string; name_fr: string }
 interface Product {
   product_id: string
   name: string
-  drug_class_id: string | null
-  dosage_form: string | null
-  unit: string | null
+  // Optional, matching how InventoryTableRow's own Product type already
+  // declares dosage_form/drug_class_id — required fields here broke the
+  // build, since InventoryTableRow (and whatever else renders this panel)
+  // isn't guaranteed to have every one of these on hand.
+  drug_class_id?: string | null
+  dosage_form?: string | null
+  unit?: string | null
   barcode: string | null
   sale_price_xaf: number
   cost_price_xaf: number | null
@@ -64,7 +68,12 @@ export default function InlineEditProductPanel({
             (dosage_form) or loudly (unit, which is NOT NULL in the
             database) wiped the product's real values on every save
             through this panel. This is the actual fix for the
-            "Impossible de modifier ce produit" error. */}
+            "Impossible de modifier ce produit" error.
+            NOTE: if product.unit/dosage_form come through as undefined
+            here (i.e. the page that fetches products doesn't SELECT
+            those columns yet), these will show blank on open rather than
+            the product's real current value — check the parent page's
+            query includes them if that happens. */}
         <input name="dosage_form" defaultValue={product.dosage_form ?? ''} placeholder={lang==="fr"?"Forme (ex. 60MG Injectable)":"Dosage form (e.g. 60MG Injectable)"} style={inputStyle} />
         <input name="unit" defaultValue={product.unit ?? ''} placeholder={lang==="fr"?"Unité (ex. flacon, boîte)":"Unit (e.g. vial, box)"} required style={inputStyle} />
         <input name="reorder_threshold" type="number" defaultValue={product.reorder_threshold} placeholder={lang==="fr"?"Seuil":"Threshold"} style={inputStyle} />

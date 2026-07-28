@@ -15,6 +15,10 @@ interface Product {
   sku: string | null
   name: string
   dosage_form?: string | null   // e.g. "500mg", "250mg/5ml", "10mg/tab"
+  unit?: string | null          // e.g. "flacon", "boîte" — NOT NULL in the
+                                 // database; added here so InlineEditProductPanel
+                                 // actually receives and pre-fills the product's
+                                 // real value instead of forcing a blank re-entry.
   drug_class_name: string | null
   drug_class_id?: string | null
   is_antibiotic?: boolean
