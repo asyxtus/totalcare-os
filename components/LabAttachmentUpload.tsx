@@ -2,7 +2,7 @@
 
 // components/LabAttachmentUpload.tsx
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { recordAttachment, completeViaAttachment } from '@/lib/actions/lab'
@@ -28,6 +28,40 @@ export default function LabAttachmentUpload({
   const [completing, setCompleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasAttachment, setHasAttachment] = useState(existingAttachments.length > 0)
+  // file_path alone isn't viewable directly — the bucket is private
+  // (RLS-protected, same as every other storage bucket in this app), so
+  // the filename was previously shown as plain, unclickable text with no
+  // way to actually open what was uploaded. A signed URL is fetched per
+  // attachment on load and used as the link target instead.
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
+  const [loadingUrls, setLoadingUrls] = useState(existingAttachments.length > 0)
+
+  useEffect(() => {
+    if (existingAttachments.length === 0) {
+      setLoadingUrls(false)
+      return
+    }
+    let cancelled = false
+    async function loadSignedUrls() {
+      const supabase = createClient()
+      const entries = await Promise.all(
+        existingAttachments.map(async (a) => {
+          const { data, error: urlError } = await supabase.storage
+            .from('lab-attachments')
+            .createSignedUrl(a.file_path, 3600) // 1 hour — long enough to view, doesn't stay valid forever
+          if (urlError) console.error('createSignedUrl failed for', a.file_path, urlError)
+          return [a.id, data?.signedUrl ?? null] as const
+        })
+      )
+      if (!cancelled) {
+        setSignedUrls(Object.fromEntries(entries.filter(([, url]) => url !== null)) as Record<string, string>)
+        setLoadingUrls(false)
+      }
+    }
+    loadSignedUrls()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingAttachments.length])
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -57,6 +91,10 @@ export default function LabAttachmentUpload({
       setError(result.error)
     } else {
       setHasAttachment(true)
+      // The signed URL for THIS new file isn't in signedUrls yet since
+      // existingAttachments (a prop) hasn't updated — refresh gets the
+      // parent to re-fetch and pass the new attachment down properly.
+      router.refresh()
     }
     setUploading(false)
     // Clear the input so selecting the same filename again (e.g. retaking
@@ -96,7 +134,25 @@ export default function LabAttachmentUpload({
         <div style={{ marginBottom: '10px' }}>
           {existingAttachments.map((a) => (
             <div key={a.id} style={{ fontSize: '12px', color: 'var(--color-success-text)', padding: '4px 0' }}>
-              ✓ {lang==='fr'?'Fichier joint :':'File attached:'} {a.file_path.split('/').pop()}
+              ✓ {lang==='fr'?'Fichier joint :':'File attached:'}{' '}
+              {signedUrls[a.id] ? (
+                <a
+                  href={signedUrls[a.id]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--color-accent)', textDecoration: 'underline', fontWeight: 500 }}
+                >
+                  {a.file_path.split('/').pop()} {lang==='fr'?'(voir)':'(view)'} ↗
+                </a>
+              ) : loadingUrls ? (
+                <span style={{ color: 'var(--color-text-secondary)' }}>
+                  {a.file_path.split('/').pop()} — {lang==='fr'?'chargement du lien…':'loading link…'}
+                </span>
+              ) : (
+                // Signed URL fetch failed — still show the filename rather
+                // than nothing, but without pretending it's clickable.
+                <span>{a.file_path.split('/').pop()}</span>
+              )}
             </div>
           ))}
         </div>
