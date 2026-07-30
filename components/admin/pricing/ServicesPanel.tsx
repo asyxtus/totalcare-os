@@ -10,6 +10,22 @@ interface ServicePrice {
   id: string; service_name: string; category: string; price_xaf: number; is_active: boolean
 }
 
+// The database restricts `category` to exactly these six values (a real
+// CHECK constraint, not a display label) — previously the "categories"
+// suggestion list was built from whatever values already existed among
+// this clinic's services, so a clinic that had only ever created
+// "consultation" services only ever saw "consultation" suggested, never
+// the other five valid options. Hardcoded here so every valid category
+// is always visible, regardless of what's been created before.
+const VALID_CATEGORIES: { value: string; labelFr: string; labelEn: string }[] = [
+  { value: 'consultation', labelFr: 'consultation — types de visite (apparaît à l\'accueil)', labelEn: 'consultation — visit types (shown at check-in)' },
+  { value: 'procedure', labelFr: 'procedure — imagerie, ECG, actes techniques…', labelEn: 'procedure — imaging, ECG, technical acts…' },
+  { value: 'lab', labelFr: 'lab — examens de laboratoire', labelEn: 'lab — laboratory tests' },
+  { value: 'pharmacy', labelFr: 'pharmacy — produits pharmaceutiques', labelEn: 'pharmacy — pharmacy products' },
+  { value: 'ward', labelFr: 'ward — hospitalisation', labelEn: 'ward — inpatient/ward charges' },
+  { value: 'other', labelFr: 'other — divers', labelEn: 'other — miscellaneous' },
+]
+
 const inputStyle: React.CSSProperties = {
   padding: '7px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
   fontSize: '13px', background: 'var(--color-bg)', color: 'var(--color-text-primary)',
@@ -98,13 +114,14 @@ function slugifyCode(name: string) {
     .slice(0, 40)
 }
 
-function NewServiceForm({ categories, lang, onDone }: { categories: string[]; lang: 'fr' | 'en'; onDone: () => void }) {
+function NewServiceForm({ lang, onDone }: { lang: 'fr' | 'en'; onDone: () => void }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [codeTouched, setCodeTouched] = useState(false)
+  const [category, setCategory] = useState('')
 
   function handleNameChange(v: string) {
     setName(v)
@@ -132,7 +149,23 @@ function NewServiceForm({ categories, lang, onDone }: { categories: string[]; la
           name="service_name" placeholder={lang === 'fr' ? 'Nom du service *' : 'Service name *'} required
           value={name} onChange={(e) => handleNameChange(e.target.value)} style={inputStyle}
         />
-        <input name="category" placeholder={lang === 'fr' ? 'Catégorie *' : 'Category *'} required list="service-categories" style={inputStyle} />
+        {/* Real dropdown now, not free text with autocomplete — category
+            is a database CHECK constraint restricted to exactly six
+            values, so letting someone type "Imaging" here was always
+            going to fail. A select makes the constraint visible instead
+            of discoverable only via a database error. */}
+        <select
+          name="category" required value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          style={inputStyle}
+        >
+          <option value="" disabled>{lang === 'fr' ? 'Catégorie *' : 'Category *'}</option>
+          {VALID_CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {lang === 'fr' ? c.labelFr : c.labelEn}
+            </option>
+          ))}
+        </select>
         <input name="price_xaf" type="number" min="0" step="1" placeholder="Prix (FCFA) *" required style={inputStyle} />
       </div>
       <div style={{ marginBottom: '10px' }}>
@@ -144,13 +177,10 @@ function NewServiceForm({ categories, lang, onDone }: { categories: string[]; la
         />
         <p style={{ fontSize: '10px', color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>
           {lang === 'fr'
-            ? "lang==='fr'?'Utilisé en interne pour identifier ce service de façon unique — doit être différent pour chaque service.':'Used internally to uniquely identify this service — must be different for each service.'"
+            ? "Utilisé en interne pour identifier ce service de façon unique — doit être différent pour chaque service."
             : 'Used internally to uniquely identify this service — must be different for every service.'}
         </p>
       </div>
-      <datalist id="service-categories">
-        {categories.map((c) => <option key={c} value={c} />)}
-      </datalist>
       {error && <p style={{ fontSize: '12px', color: 'var(--color-critical-text)', margin: '0 0 10px' }}>{error}</p>}
       <div style={{ display: 'flex', gap: '8px' }}>
         <button type="submit" disabled={pending} style={{
@@ -172,8 +202,6 @@ function NewServiceForm({ categories, lang, onDone }: { categories: string[]; la
 
 export default function ServicesPanel({ services, lang }: { services: ServicePrice[]; lang: 'fr' | 'en' }) {
   const [adding, setAdding] = useState(false)
-
-  const categories = useMemo(() => [...new Set(services.map((s) => s.category))].sort(), [services])
 
   const grouped = useMemo(() => {
     const map = new Map<string, ServicePrice[]>()
@@ -197,7 +225,7 @@ export default function ServicesPanel({ services, lang }: { services: ServicePri
         )}
       </div>
 
-      {adding && <NewServiceForm categories={categories} lang={lang} onDone={() => setAdding(false)} />}
+      {adding && <NewServiceForm lang={lang} onDone={() => setAdding(false)} />}
 
       {grouped.length === 0 ? (
         <div style={{
