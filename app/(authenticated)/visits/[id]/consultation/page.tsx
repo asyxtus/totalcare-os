@@ -175,6 +175,19 @@ export default async function ConsultationPage({
     .eq('clinic_id', visit.clinic_id)
     .eq('is_active', true)
 
+  // Billable procedures a doctor can order directly during a consultation
+  // — imaging (échographie, ECG, echocardiography...), or any other
+  // service_price the clinic has priced under a category other than
+  // "consultation" (which is reserved for check-in visit types).
+  const { data: availableProcedures } = await supabase
+    .from('service_prices')
+    .select('id, service_name, category, price_xaf')
+    .eq('clinic_id', visit.clinic_id)
+    .neq('category', 'consultation')
+    .eq('is_active', true)
+    .order('category')
+    .order('service_name')
+
   // Existing lab orders/results for THIS visit — what the doctor sees
   // when returning to a patient after labs come back.
   const { data: labOrders } = await supabase
@@ -384,6 +397,7 @@ export default async function ConsultationPage({
         icd10Codes={icd10Codes ?? []}
         availablePanels={(availablePanels ?? []).map((p: any) => ({ id: p.lab_panel_id, name: lang === 'en' && p.lab_panels.name_en ? p.lab_panels.name_en : p.lab_panels.name_fr, category: p.lab_panels.category }))}
         availableTests={(availableTests ?? []).map((t: any) => ({ id: t.lab_test_catalog_id, name: lang === 'en' && t.lab_test_catalog.name_en ? t.lab_test_catalog.name_en : t.lab_test_catalog.name_fr, category: t.lab_test_catalog.category }))}
+        availableProcedures={availableProcedures ?? []}
         initialValues={{
           subjective: consultationData?.subjective_notes ?? '',
           objective: consultationData?.examination_notes ?? '',

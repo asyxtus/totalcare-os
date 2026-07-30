@@ -35,6 +35,7 @@ interface Template {
 
 interface Icd10Code { code: string; description_fr: string; category: string }
 interface LabOption { id: string; name: string; category: string }
+interface ProcedureOption { id: string; service_name: string; category: string; price_xaf: number }
 interface InitialValues {
   subjective: string
   objective: string
@@ -85,6 +86,9 @@ const STR = {
     noLabResults: (q: string) => `Aucun résultat pour « ${q} ».`,
     extLab: 'Examen externe (hors catalogue)',
     extLabPh: 'ex. Scanner thoracique, IRM lombaire…',
+    procedures: 'Procédures (imagerie, actes techniques…)',
+    noProcedures: "Aucune procédure configurée pour cette clinique — un administrateur peut en ajouter depuis Administration → Services (catégorie autre que « consultation »).",
+    procedureSelected: (n: number) => `${n} procédure(s) sélectionnée(s)`,
     allergyWarning: (m: string) => `⚠ Allergie signalée par le patient : « ${m} » — vérifiez avant de prescrire`,
     selected: (n: number) => `${n} test(s) sélectionné(s)`,
     backToQueue: '← Retour à la file',
@@ -128,6 +132,9 @@ const STR = {
     noLabResults: (q: string) => `No results for "${q}".`,
     extLab: 'External test (off-catalog)',
     extLabPh: 'e.g. Chest CT, lumbar MRI…',
+    procedures: 'Procedures (imaging, technical acts…)',
+    noProcedures: 'No procedures configured for this clinic — an administrator can add one from Administration → Services (any category other than "consultation").',
+    procedureSelected: (n: number) => `${n} procedure(s) selected`,
     allergyWarning: (m: string) => `⚠ Patient-reported allergy: «${m}» — verify before prescribing`,
     selected: (n: number) => `${n} test(s) selected`,
     backToQueue: '← Back to queue',
@@ -182,12 +189,13 @@ interface ConsultationFormProps {
   icd10Codes: Icd10Code[]
   availablePanels: LabOption[]
   availableTests: LabOption[]
+  availableProcedures?: ProcedureOption[]
   initialValues: InitialValues
 }
 
 export default function ConsultationForm({
   visitId, consultationId, patientId, products, patientAllergies,
-  templates, icd10Codes, availablePanels, availableTests, initialValues,
+  templates, icd10Codes, availablePanels, availableTests, availableProcedures = [], initialValues,
 }: ConsultationFormProps) {
   const lang = useLang()
   const t = STR[lang]
@@ -209,6 +217,7 @@ export default function ConsultationForm({
   const [externalTests, setExternalTests] = useState<string[]>([])
   const [externalTestInput, setExternalTestInput] = useState('')
   const [labSearchQuery, setLabSearchQuery] = useState('')
+  const [selectedProcedureIds, setSelectedProcedureIds] = useState<string[]>([])
   const [admitPatient, setAdmitPatient] = useState(false)
   const [admissionReason, setAdmissionReason] = useState('')
 
@@ -261,6 +270,11 @@ export default function ConsultationForm({
 
   const icd10ByCategory = icd10Codes.reduce<Record<string, Icd10Code[]>>((acc, c) => {
     (acc[c.category] ??= []).push(c)
+    return acc
+  }, {})
+
+  const proceduresByCategory = availableProcedures.reduce<Record<string, ProcedureOption[]>>((acc, p) => {
+    (acc[p.category] ??= []).push(p)
     return acc
   }, {})
 
@@ -620,6 +634,45 @@ export default function ConsultationForm({
         {selectedPanelIds.map(id => <input key={id} type="hidden" name="lab_panel_ids" value={id} />)}
         {selectedTestIds.map(id => <input key={id} type="hidden" name="lab_test_ids" value={id} />)}
         {externalTests.map((name, i) => <input key={i} type="hidden" name="lab_external_names" value={name} />)}
+      </div>
+
+      {/* Procedures — imaging, ECG, echocardiography, and any other
+          non-consultation service_price. Same checkbox-list pattern as
+          lab tests, grouped by category, each generating its own charge
+          via add_consultation_procedure_charge on submit. */}
+      <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>{t.procedures}</p>
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '10px', marginBottom: '1.25rem' }}>
+        {availableProcedures.length === 0 ? (
+          <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0 }}>{t.noProcedures}</p>
+        ) : (
+          Object.entries(proceduresByCategory).map(([category, procs]) => (
+            <details key={category} open={proceduresByCategory && Object.keys(proceduresByCategory).length <= 3} style={{ marginBottom: '4px' }}>
+              <summary style={{ fontSize: '12px', fontWeight: 500, cursor: 'pointer', padding: '4px 0' }}>
+                {category} ({procs.length})
+              </summary>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '6px 0 0 4px' }}>
+                {procs.map(proc => (
+                  <label key={proc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '12px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <input type="checkbox" checked={selectedProcedureIds.includes(proc.id)}
+                        onChange={e => setSelectedProcedureIds(ids => e.target.checked ? [...ids, proc.id] : ids.filter(i => i !== proc.id))} />
+                      {proc.service_name}
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)' }}>
+                      {proc.price_xaf.toLocaleString(t.locale)} FCFA
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </details>
+          ))
+        )}
+        {selectedProcedureIds.length > 0 && (
+          <div style={{ fontSize: '11px', color: 'var(--color-accent)', margin: '8px 0 0' }}>
+            {t.procedureSelected(selectedProcedureIds.length)}
+          </div>
+        )}
+        {selectedProcedureIds.map(id => <input key={id} type="hidden" name="procedure_ids" value={id} />)}
       </div>
 
       {/* Admit + referral */}

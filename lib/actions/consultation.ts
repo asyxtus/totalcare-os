@@ -24,9 +24,12 @@ export async function completeConsultation(
   // refuse immediately rather than re-creating the prescription and lab
   // order a second time. This is what closes the gap that let 5 lab
   // orders get created from repeated clicks on one button.
+  // Also fetches patient_id here — needed for procedure charges below —
+  // rather than trusting a client-submitted patient ID for a financial
+  // write; this is the visit's own record of who it belongs to.
   const { data: currentVisit } = await supabase
     .from('visits')
-    .select('status')
+    .select('status, patient_id')
     .eq('id', visitId)
     .single()
 
@@ -157,6 +160,31 @@ export async function completeConsultation(
       })
       if (invoiceError) {
         return { error: 'Examens commandés, mais la facture n\'a pas pu être créée. Contactez un administrateur.' }
+      }
+    }
+  }
+
+  // Procedures — imaging, ECG, echocardiography, and any other
+  // non-consultation service_price a doctor selected. Each one becomes
+  // its own charge + invoice via add_consultation_procedure_charge,
+  // mirroring how lab items already generate their own charges above.
+  // A failure partway through (e.g. the 2nd of 3 procedures) is reported
+  // but doesn't roll back the ones that already succeeded — same
+  // philosophy as the lab/prescription steps above: a partial success is
+  // safer to leave standing and flag than to silently discard real,
+  // already-billed work.
+  const procedureIds = formData.getAll('procedure_ids') as string[]
+  if (procedureIds.length > 0 && currentVisit.patient_id) {
+    for (const procedureId of procedureIds) {
+      const { error: procedureError } = await supabase.rpc('add_consultation_procedure_charge', {
+        p_clinic_id: staff.clinicId,
+        p_patient_id: currentVisit.patient_id,
+        p_visit_id: visitId,
+        p_service_price_id: procedureId,
+        p_created_by: staff.staffId,
+      })
+      if (procedureError) {
+        return { error: `Impossible d'ajouter une procédure à la facture : ${procedureError.message}` }
       }
     }
   }
