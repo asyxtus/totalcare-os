@@ -59,6 +59,62 @@ export default async function DoctorPage() {
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     })
 
+  // Patients waiting on lab results, assigned to THIS doctor. Previously
+  // completely absent from this page — a visit at waiting_lab was
+  // invisible here no matter how many results had already come back,
+  // since the doctor had no link to click even after the backend fix
+  // that lets start_consultation() reopen a partially-resolved visit.
+  // Only the assigned doctor sees these (not "any doctor," unlike the
+  // unassigned-waiting case above) — a waiting_lab visit always already
+  // has a definite assigned doctor from the consultation that ordered
+  // the labs.
+  const { data: waitingLabVisitsRaw } = await supabase
+    .from('visits')
+    .select('id, visit_reason, created_at, patients(id, full_name, patient_code)')
+    .eq('status', 'waiting_lab')
+    .eq('assigned_doctor_id', staff.staffId)
+    .order('created_at', { ascending: true })
+
+  const waitingLabVisitIds = (waitingLabVisitsRaw ?? []).map((v) => v.id)
+
+  const { data: waitingLabOrders } = waitingLabVisitIds.length > 0
+    ? await supabase
+        .from('lab_orders')
+        .select('visit_id, lab_order_items(id, item_type, status)')
+        .in('visit_id', waitingLabVisitIds)
+    : { data: [] }
+
+  // Per-visit progress (in-house tests only — external send-outs were
+  // never part of the completion gate and aren't part of this count
+  // either), plus which visits already have at least one critical
+  // result sitting ready — the strongest possible signal that pulling
+  // the patient back shouldn't wait for the rest.
+  const progressByVisit = new Map<string, { total: number; completed: number }>()
+  const allInHouseItemIds: string[] = []
+  for (const order of waitingLabOrders ?? []) {
+    const items = ((order as any).lab_order_items ?? []).filter((i: any) => i.item_type !== 'external')
+    const completed = items.filter((i: any) => i.status === 'completed')
+    const prev = progressByVisit.get((order as any).visit_id) ?? { total: 0, completed: 0 }
+    progressByVisit.set((order as any).visit_id, { total: prev.total + items.length, completed: prev.completed + completed.length })
+    allInHouseItemIds.push(...items.map((i: any) => i.id))
+  }
+
+  const { data: criticalRows } = allInHouseItemIds.length > 0
+    ? await supabase.from('lab_results').select('lab_order_item_id').in('lab_order_item_id', allInHouseItemIds).eq('is_critical', true)
+    : { data: [] }
+  const criticalItemIds = new Set((criticalRows ?? []).map((r: any) => r.lab_order_item_id))
+  const visitsWithCriticalResult = new Set(
+    (waitingLabOrders ?? [])
+      .filter((order: any) => (order.lab_order_items ?? []).some((i: any) => criticalItemIds.has(i.id)))
+      .map((order: any) => order.visit_id)
+  )
+
+  const waitingLabVisits = (waitingLabVisitsRaw ?? []).map((v) => ({
+    ...v,
+    progress: progressByVisit.get(v.id) ?? { total: 0, completed: 0 },
+    hasCritical: visitsWithCriticalResult.has(v.id),
+  }))
+
   const { data: primaryDoctors } = await supabase
     .from('staff')
     .select('id, full_name')
@@ -148,6 +204,71 @@ export default async function DoctorPage() {
         <StatCard label={lang === 'fr' ? 'Urgences médicales' : 'Emergencies'} value={visits.filter((v) => v.is_emergency).length} accent={visits.some((v) => v.is_emergency) ? 'critical' : undefined} />
         <StatCard label={lang === 'fr' ? "Terminées aujourd'hui" : 'Completed today'} value={myWeekTrend[myWeekTrend.length - 1]?.value ?? 0} />
       </StatCardRow>
+
+      {/* Waiting on lab results — new. Not part of the main queue since
+          these patients aren't technically waiting for the doctor yet
+          (they left after consultation, results are trickling in), but
+          shown here so the doctor can choose to pull one back in early
+          rather than only ever seeing them once every test finishes. */}
+      {waitingLabVisits.length > 0 && (
+        <div style={{ marginBottom: '1.25rem' }}>
+          <p style={{ fontSize: '13px', fontWeight: 600, margin: '0 0 8px', color: 'var(--color-text-secondary)' }}>
+            {lang === 'fr' ? 'En attente de laboratoire' : 'Awaiting laboratory'}
+          </p>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+            {waitingLabVisits.map((v: any, i: number) => {
+              const patient = v.patients as any
+              const { total, completed } = v.progress
+              return (
+                <Link key={v.id} href={`/visits/${v.id}/consultation`} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 16px', textDecoration: 'none', color: 'inherit',
+                  borderBottom: i < waitingLabVisits.length - 1 ? '1px solid var(--color-border-subtle)' : 'none',
+                  background: v.hasCritical ? 'color-mix(in srgb, var(--color-critical-bg) 40%, transparent)' : 'transparent',
+                }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      {patient?.full_name ?? '—'}
+                      {v.hasCritical && (
+                        <span style={{
+                          fontSize: '10px', padding: '1px 7px', borderRadius: '999px',
+                          background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)', fontWeight: 700,
+                        }}>
+                          {lang === 'fr' ? '⚠ RÉSULTAT CRITIQUE PRÊT' : '⚠ CRITICAL RESULT READY'}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                      {patient?.patient_code}
+                      {v.visit_reason ? ` · ${v.visit_reason}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{timeAgo(v.created_at, lang)}</span>
+                    <span style={{
+                      fontSize: '11px', padding: '2px 8px', borderRadius: 'var(--radius-sm)',
+                      background: completed === total && total > 0 ? 'var(--color-success-bg)' : 'var(--color-warning-bg)',
+                      color: completed === total && total > 0 ? 'var(--color-success-text)' : 'var(--color-warning-text)',
+                    }}>
+                      {total > 0
+                        ? `${completed}/${total} ${lang === 'fr' ? 'examens terminés' : 'tests done'}`
+                        : (lang === 'fr' ? 'En attente de résultats' : 'Awaiting results')}
+                    </span>
+                    <span style={{ fontSize: '12px', color: 'var(--color-accent)' }}>
+                      {lang === 'fr' ? 'Reprendre →' : 'Resume →'}
+                    </span>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+          <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', margin: '6px 0 0' }}>
+            {lang === 'fr'
+              ? "Vous pouvez reprendre un patient avant que tous ses examens soient terminés — utile si un résultat clé est déjà disponible."
+              : "You can resume a patient before all of their tests are finished — useful when a key result is already available."}
+          </p>
+        </div>
+      )}
 
       {visits.length === 0 && (
         <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>

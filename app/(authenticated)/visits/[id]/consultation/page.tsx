@@ -36,7 +36,12 @@ export default async function ConsultationPage({
     notFound()
   }
 
-  if (!['waiting_consultation', 'in_consultation'].includes(visit.status)) {
+  // waiting_lab included deliberately: a doctor can pull a patient back
+  // in with partial lab results ready, rather than being forced to wait
+  // for every in-house test to finish before the visit is reachable at
+  // all. start_consultation() (called just below) accepts this same
+  // status for the same reason.
+  if (!['waiting_consultation', 'in_consultation', 'waiting_lab'].includes(visit.status)) {
     return (
       <div>
         <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>
@@ -49,9 +54,15 @@ export default async function ConsultationPage({
     )
   }
 
-  // Opening this screen IS starting the consultation, if not already started.
+  // Opening this screen IS starting the consultation, if not already
+  // started. waiting_lab is grouped with waiting_consultation here
+  // deliberately — both need start_consultation() to reopen the
+  // already-completed consultation that ordered the labs. Only
+  // in_consultation (a visit already actively open) goes to the
+  // ownership-check branch below; a waiting_lab visit has no
+  // in-progress consultation to check ownership of yet.
   let consultationId: string
-  if (visit.status === 'waiting_consultation') {
+  if (visit.status === 'waiting_consultation' || visit.status === 'waiting_lab') {
     const { data: newConsultationId, error: startError } = await supabase.rpc('start_consultation', {
       p_visit_id: id,
       p_doctor_id: staff.staffId,
