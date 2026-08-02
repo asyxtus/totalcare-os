@@ -2,7 +2,7 @@
 
 // components/ProductForm.tsx
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createProduct } from '@/lib/actions/pharmacy'
 import { useLang } from '@/lib/i18n/LangContext'
 
@@ -13,6 +13,7 @@ export default function ProductForm({ drugClasses }: { drugClasses: DrugClass[] 
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
 
   const inputStyle: React.CSSProperties = {
     padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
@@ -23,16 +24,25 @@ export default function ProductForm({ drugClasses }: { drugClasses: DrugClass[] 
     setError(null)
     setSubmitting(true)
     const result = await createProduct(formData)
-    if (result && 'error' in result && result.error) setError(result.error)
-    else {
+    if (result && 'error' in result && result.error) {
+      setError(result.error)
+    } else {
       setSuccess(true)
-      setTimeout(() => setSuccess(false), 2500)
+      // The actual fix: previously the form stayed fully filled in after
+      // a successful save, with only a success message that vanished
+      // after 2.5s. Someone who missed that brief message would see a
+      // form that still looked unsubmitted and — since disabled={submitting}
+      // only blocks a fast double-click, not a deliberate second click
+      // later — could genuinely re-submit the same product. Clearing the
+      // form is what actually prevents that, not just faster feedback.
+      formRef.current?.reset()
+      setTimeout(() => setSuccess(false), 4000)
     }
     setSubmitting(false)
   }
 
   return (
-    <form action={handleSubmit} style={{
+    <form ref={formRef} action={handleSubmit} style={{
       background: 'var(--color-surface)', border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1.5rem',
     }}>
@@ -54,16 +64,26 @@ export default function ProductForm({ drugClasses }: { drugClasses: DrugClass[] 
       </div>
 
       {error && <p style={{ fontSize: '12px', color: 'var(--color-critical-text)', marginBottom: '8px' }}>{error}</p>}
-      {success && <p style={{ fontSize: '12px', color: 'var(--color-success-text)', marginBottom: '8px' }}>✓ Produit ajouté au catalogue.</p>}
+      {success && (
+        <p style={{
+          fontSize: '13px', fontWeight: 500, color: 'var(--color-success-text)',
+          background: 'var(--color-success-bg)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', marginBottom: '8px',
+        }}>
+          ✓ {lang==='fr'?'Produit ajouté au catalogue — le formulaire a été vidé, prêt pour le suivant.':'Product added to the catalog — the form has been cleared, ready for the next one.'}
+        </p>
+      )}
 
       <button type="submit" disabled={submitting} style={{
         fontSize: '13px', padding: '8px 16px', borderRadius: 'var(--radius-sm)', border: 'none',
-        background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', cursor: 'pointer',
+        background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', cursor: submitting ? 'not-allowed' : 'pointer',
+        opacity: submitting ? 0.7 : 1,
       }}>
-        {submitting ? '…' : 'Ajouter le produit'}
+        {submitting ? (lang==='fr'?'Enregistrement…':'Saving…') : (lang==='fr'?'Ajouter le produit':'Add product')}
       </button>
       <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
-        Le coût de revient est nécessaire pour calculer la marge bénéficiaire réelle sur le tableau de bord.
+        {lang==='fr'
+          ? 'Le coût de revient est nécessaire pour calculer la marge bénéficiaire réelle sur le tableau de bord.'
+          : 'Purchase cost is needed to calculate real profit margin on the dashboard.'}
       </p>
     </form>
   )
