@@ -10,10 +10,7 @@ interface DrugClass { id: string; name_fr: string }
 interface Product {
   product_id: string
   name: string
-  // Optional, matching how InventoryTableRow's own Product type already
-  // declares dosage_form/drug_class_id — required fields here broke the
-  // build, since InventoryTableRow (and whatever else renders this panel)
-  // isn't guaranteed to have every one of these on hand.
+  generic_name?: string | null
   drug_class_id?: string | null
   dosage_form?: string | null
   unit?: string | null
@@ -55,26 +52,20 @@ export default function InlineEditProductPanel({
     <form action={handleSubmit} style={{ padding: '10px 14px', background: 'var(--color-bg)' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '8px' }}>
         <input name="name" defaultValue={product.name} placeholder={lang==="fr"?"Nom *":"Name *"} required style={inputStyle} />
-        {/* Was hardcoded to defaultValue="" — silently reset the drug class
-            to blank on every single save, regardless of what it was set to
-            before. Now correctly pre-fills the product's current class. */}
+        {/* Was missing entirely — generic_name existed on the product
+            (added in migration 137) but had no way to be edited once set
+            at creation. */}
+        <input name="generic_name" defaultValue={product.generic_name ?? ''} placeholder={lang==="fr"?"Nom générique / DCI":"Generic / INN name"} style={inputStyle} />
         <select name="drug_class_id" style={inputStyle} defaultValue={product.drug_class_id ?? ''}>
           <option value="">{lang==="fr"?"Classe thérapeutique":"Drug class"}</option>
           {drugClasses.map((d) => <option key={d.id} value={d.id}>{d.name_fr}</option>)}
         </select>
         <input name="barcode" defaultValue={product.barcode ?? ''} placeholder={lang==="fr"?"Code-barres":"Barcode"} style={inputStyle} />
-        {/* These two were missing entirely — updateProduct tried to read
-            them from formData regardless, always got null, and silently
-            (dosage_form) or loudly (unit, which is NOT NULL in the
-            database) wiped the product's real values on every save
-            through this panel. This is the actual fix for the
-            "Impossible de modifier ce produit" error.
-            NOTE: if product.unit/dosage_form come through as undefined
-            here (i.e. the page that fetches products doesn't SELECT
-            those columns yet), these will show blank on open rather than
-            the product's real current value — check the parent page's
-            query includes them if that happens. */}
         <input name="dosage_form" defaultValue={product.dosage_form ?? ''} placeholder={lang==="fr"?"Forme (ex. 60MG Injectable)":"Dosage form (e.g. 60MG Injectable)"} style={inputStyle} />
+        {/* product.unit now actually arrives populated — get_products_with_stock
+            was fixed (migration 138) to return it at all. Previously this
+            field always opened blank regardless of what was really saved,
+            meaning every edit silently tried to null out a NOT NULL column. */}
         <input name="unit" defaultValue={product.unit ?? ''} placeholder={lang==="fr"?"Unité (ex. flacon, boîte)":"Unit (e.g. vial, box)"} required style={inputStyle} />
         <input name="reorder_threshold" type="number" defaultValue={product.reorder_threshold} placeholder={lang==="fr"?"Seuil":"Threshold"} style={inputStyle} />
         <input name="cost_price_xaf" type="number" step="any" defaultValue={product.cost_price_xaf ?? ''} placeholder={lang==="fr"?"Coût (FCFA)":"Cost (FCFA)"} style={inputStyle} />

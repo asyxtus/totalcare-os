@@ -16,6 +16,7 @@ interface Product {
   sku: string | null
   name: string
   dosage_form?: string | null   // e.g. "500mg", "250mg/5ml", "10mg/tab"
+  generic_name?: string | null  // e.g. "Paracétamol" for a branded "Doliprane"
   unit?: string | null          // e.g. "flacon", "boîte" — NOT NULL in the
                                  // database; added here so InlineEditProductPanel
                                  // actually receives and pre-fills the product's
@@ -95,6 +96,11 @@ export default function InventoryTableRow({ product, drugClasses }: { product: P
           {product.dosage_form && (
             <div style={{ fontSize: '11px', color: 'var(--color-accent)', marginTop: '1px', fontWeight: 500 }}>
               {product.dosage_form}
+            </div>
+          )}
+          {product.generic_name && (
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '1px', fontStyle: 'italic' }}>
+              {product.generic_name}
             </div>
           )}
           {product.barcode && (

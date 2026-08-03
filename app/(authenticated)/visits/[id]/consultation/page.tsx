@@ -398,6 +398,7 @@ export default async function ConsultationPage({
         products={(products ?? []).map((p: any) => ({
           id: p.product_id,
           name: p.name,
+          genericName: p.generic_name ?? null,
           dosageForm: p.dosage_form ?? null,
           isAntibiotic: p.is_antibiotic ?? false,
           onHand: p.on_hand ?? 0,

@@ -10,6 +10,7 @@ import ReferralForm from '@/components/ReferralForm'
 interface Product {
   id: string
   name: string
+  genericName?: string | null
   dosageForm: string | null
   isAntibiotic: boolean
   onHand: number
@@ -72,6 +73,9 @@ const STR = {
     fromStock: 'Stock de la pharmacie',
     extDrug: 'Médicament externe (texte libre)',
     drugPh: 'Nom du médicament',
+    searchDrugPh: '— Rechercher un médicament (nom ou DCI) —',
+    noDrugFound: 'Aucun médicament trouvé — essayez la saisie libre.',
+    outOfStockTag: 'épuisé',
     freetextHint: "Ce médicament ne sera pas déduit du stock — utilisez ceci pour tout ce que la pharmacie n'a pas (rupture de stock ou hors catalogue). Le patient l'achètera ailleurs.",
     typeManually: '✎ Saisie libre (hors catalogue)',
     chooseFromStock: '↺ Choisir dans le stock',
@@ -118,6 +122,9 @@ const STR = {
     fromStock: 'Pharmacy stock',
     extDrug: 'External medication (free text)',
     drugPh: 'Medication name',
+    searchDrugPh: '— Search medication (name or generic) —',
+    noDrugFound: 'No medication found — try typing manually.',
+    outOfStockTag: 'out of stock',
     freetextHint: "This medication won't be deducted from stock — use this for anything the pharmacy doesn't have (out of stock or not in the catalog). The patient will buy it elsewhere.",
     typeManually: '✎ Type manually (not in catalog)',
     chooseFromStock: '↺ Choose from stock',
@@ -177,6 +184,90 @@ function checkAllergyMatch(product: Product, patientAllergies: string | null): s
   const tokens = patientAllergies.toLowerCase().split(/[,;]/).map(t => t.trim()).filter(t => t.length > 2)
   const text = `${product.name} ${product.drugClassName ?? ''} ${product.dosageForm ?? ''}`.toLowerCase()
   return tokens.find(tok => text.includes(tok)) ?? null
+}
+
+// Searchable medication picker — replaces a plain <select> that only
+// ever matched a product's own name from the very start of the string,
+// with no way to search by generic/INN name at all. Filters by BOTH
+// name and genericName, mirroring the search UX already used for lab
+// tests just below this in the same form. The actual selected product
+// id still submits via a plain hidden input — this component is purely
+// the search/select UI, not the form field itself.
+function MedicationPicker({
+  products, value, onSelect, lang,
+}: {
+  products: Product[]
+  value: string
+  onSelect: (productId: string) => void
+  lang: 'fr' | 'en'
+}) {
+  const t = STR[lang]
+  const [query, setQuery] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+  const selected = products.find((p) => p.id === value)
+
+  const q = query.trim().toLowerCase()
+  const filtered = (
+    q.length > 0
+      ? products.filter((p) =>
+          p.name.toLowerCase().includes(q) || (p.genericName ?? '').toLowerCase().includes(q)
+        )
+      : products
+  ).slice(0, 8)
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        value={isOpen ? query : (selected?.name ?? '')}
+        onChange={(e) => setQuery(e.target.value)}
+        onFocus={() => { setQuery(''); setIsOpen(true) }}
+        onBlur={() => setTimeout(() => setIsOpen(false), 150)}
+        placeholder={t.searchDrugPh}
+        style={{
+          width: '100%', border: 'none', background: 'transparent',
+          fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)',
+          outline: 'none', padding: 0,
+        }}
+      />
+      {isOpen && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 20,
+          background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-sm)', maxHeight: '220px', overflowY: 'auto',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+        }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+              {t.noDrugFound}
+            </div>
+          ) : (
+            filtered.map((p) => {
+              const oos = (p.onHand ?? 0) === 0
+              return (
+                <div
+                  key={p.id}
+                  onMouseDown={() => { if (!oos) { onSelect(p.id); setIsOpen(false) } }}
+                  style={{
+                    padding: '8px 12px', cursor: oos ? 'not-allowed' : 'pointer',
+                    borderBottom: '1px solid var(--color-border-subtle)', opacity: oos ? 0.5 : 1,
+                  }}
+                >
+                  <div style={{ fontSize: '13px', fontWeight: 500 }}>
+                    {p.name}{oos ? ` (${t.outOfStockTag})` : ''}
+                  </div>
+                  {(p.genericName || p.dosageForm) && (
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                      {[p.genericName, p.dosageForm].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 interface ConsultationFormProps {
@@ -356,55 +447,33 @@ export default function ConsultationForm({
                 : '1px solid var(--color-border)',
               borderRadius: 'var(--radius-md)',
               background: 'var(--color-surface)',
-              overflow: 'hidden',
+              overflow: 'visible',
             }}>
               {/* Card header — product name + dosage info + × button */}
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
                 padding: '10px 12px 8px',
                 borderBottom: '1px solid var(--color-border-subtle)',
+                position: 'relative',
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {row.mode === 'catalog' ? (
                     <>
-                      <select
-                        name="rx_product_id"
+                      <input type="hidden" name="rx_product_id" value={row.productId} />
+                      <MedicationPicker
+                        products={products}
                         value={row.productId}
-                        onChange={e => updateRxRow(i, { productId: e.target.value })}
-                        style={{
-                          width: '100%', border: 'none', background: 'transparent',
-                          fontSize: '14px', fontWeight: 600, color: outOfStock
-                            ? 'var(--color-critical-text)' : 'var(--color-text-primary)',
-                          cursor: 'pointer', outline: 'none', padding: 0,
-                        }}
-                      >
-                        <option value="">{lang === 'fr' ? '— Choisir un médicament —' : '— Select medication —'}</option>
-                        {products.map(p => {
-                          const oos = (p.onHand ?? 0) === 0
-                          // Drop dosage-form tokens already present in the name
-                          let formPart = ''
-                          if (p.dosageForm) {
-                            const nameLower = p.name.toLowerCase()
-                            formPart = p.dosageForm.split(/\s+/)
-                              .filter((tok: string) => !nameLower.includes(tok.toLowerCase()))
-                              .join(' ').trim()
-                          }
-                          const label = [
-                            p.name,
-                            formPart || null,
-                            p.isAntibiotic ? '[Ab]' : null,
-                            oos ? '⚠' : null,
-                          ].filter(Boolean).join(' · ')
-                          return (
-                            <option key={p.id} value={p.id} disabled={oos}>
-                              {label}
-                            </option>
-                          )
-                        })}
-                      </select>
-                      {/* Subtitle: dosage form + stock status + antibiotic tag */}
+                        onSelect={(id) => updateRxRow(i, { productId: id })}
+                        lang={lang}
+                      />
+                      {/* Subtitle: generic name + dosage form + stock status + antibiotic tag */}
                       {selectedProduct && (
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
+                          {selectedProduct.genericName && (
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>
+                              {selectedProduct.genericName}
+                            </span>
+                          )}
                           {selectedProduct.dosageForm && (
                             <span style={{ fontSize: '12px', color: 'var(--color-accent)', fontWeight: 500 }}>
                               {selectedProduct.dosageForm}
