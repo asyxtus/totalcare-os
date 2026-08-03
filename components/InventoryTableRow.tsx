@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useLang } from '@/lib/i18n/LangContext'
 import InlineAdjustPanel from '@/components/InlineAdjustPanel'
 import InlineEditProductPanel from '@/components/InlineEditProductPanel'
+import BatchList from '@/components/BatchList'
 import { toggleProductActive } from '@/lib/actions/pharmacy'
 
 interface DrugClass { id: string; name_fr: string; name_en?: string; is_antibiotic?: boolean }
@@ -33,7 +34,7 @@ interface Product {
 export default function InventoryTableRow({ product, drugClasses }: { product: Product; drugClasses: DrugClass[] }) {
   const lang = useLang()
   const router = useRouter()
-  const [mode, setMode] = useState<'none' | 'adjust' | 'edit'>('none')
+  const [mode, setMode] = useState<'none' | 'adjust' | 'edit' | 'batches'>('none')
   const [togglingActive, setTogglingActive] = useState(false)
 
   const isOut = product.on_hand === 0
@@ -66,8 +67,8 @@ export default function InventoryTableRow({ product, drugClasses }: { product: P
     <div style={{ borderBottom: '1px solid var(--color-border-subtle)', opacity: product.is_active ? 1 : 0.5 }}>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '0.6fr 2.2fr 1.4fr 1fr 1fr 0.7fr 1.2fr',
-        gap: '10px', padding: '10px 14px', alignItems: 'center', minWidth: '640px',
+        gridTemplateColumns: '0.6fr 2.2fr 1.4fr 1fr 1fr 0.7fr 1.5fr',
+        gap: '10px', padding: '10px 14px', alignItems: 'center', minWidth: '680px',
       }}>
         {/* SKU */}
         <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)' }}>
@@ -108,8 +109,10 @@ export default function InventoryTableRow({ product, drugClasses }: { product: P
           {product.drug_class_name ?? '—'}
         </span>
 
-        {/* Stock / threshold — tooltip explains what the numbers mean */}
-        <div title={lang === 'fr' ? `Stock actuel / Seuil de réapprovisionnement` : `Current stock / Reorder threshold`}>
+        {/* Stock / threshold — tooltip explains what the numbers mean.
+            This is the COMBINED total across every active batch — click
+            "Lots" below to see it broken down batch by batch. */}
+        <div title={lang === 'fr' ? `Stock actuel (tous lots) / Seuil de réapprovisionnement` : `Current stock (all batches) / Reorder threshold`}>
           <span style={{ fontSize: '13px', fontFamily: 'var(--font-mono)', color: stockColor, fontWeight: isOut || isLow ? 600 : 400 }}>
             {product.on_hand}
           </span>
@@ -140,6 +143,19 @@ export default function InventoryTableRow({ product, drugClasses }: { product: P
 
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+          {/* "Lots" — new, deliberately separate from "Ajuster le stock".
+              Read-only: no way to change anything from here. Previously
+              the only way to see per-batch number/expiry/quantity was to
+              open the stock-adjustment tool and scroll a <select> meant
+              for picking which lot to change — awkward for someone who
+              just wants to check what's on the shelf. */}
+          <button
+            onClick={() => setMode((m) => m === 'batches' ? 'none' : 'batches')}
+            title={lang === 'fr' ? 'Voir les lots (numéro, péremption, quantité)' : 'View batches (number, expiry, quantity)'}
+            style={iconBtn(mode === 'batches')}
+          >
+            📦
+          </button>
           <button
             onClick={() => setMode((m) => m === 'edit' ? 'none' : 'edit')}
             title={lang === 'fr' ? 'Modifier le produit' : 'Edit product'}
@@ -168,6 +184,11 @@ export default function InventoryTableRow({ product, drugClasses }: { product: P
           </button>
         </div>
       </div>
+
+      {/* Read-only batch breakdown — shown inline when 📦 is clicked */}
+      {mode === 'batches' && (
+        <BatchList productId={product.product_id} />
+      )}
 
       {/* Stock adjustment panel — shown inline when ⇄ is clicked */}
       {mode === 'adjust' && (

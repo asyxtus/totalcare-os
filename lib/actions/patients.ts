@@ -57,57 +57,57 @@ export async function createPatient(formData: FormData): Promise<CreatePatientRe
       : 'Provide either a date of birth or an estimated age.' }
   }
 
-  // CNI duplicate detection. Advisory, not a hard block — the same CNI
-  // number can legitimately appear across family members sharing a card,
-  // a card can be reused, or the field can simply be wrong. The caller
-  // can pass confirm_duplicate=true to proceed past the warning after
-  // seeing the existing match.
   const confirmDuplicate = formData.get('confirm_duplicate') === 'true'
-  if (nationalIdNumber && !confirmDuplicate) {
-    const { data: existing } = await supabase
-      .from('patients')
-      .select('id, full_name, patient_code')
-      .eq('clinic_id', staff.clinicId)
-      .eq('national_id_number', nationalIdNumber)
-      .limit(1)
-      .maybeSingle()
-    if (existing) {
-      return {
-        duplicateWarning: true,
-        existingPatient: { id: existing.id, fullName: existing.full_name, patientCode: existing.patient_code },
-        error: staff.preferredLanguage === 'fr'
-          ? `Un patient avec ce numéro CNI existe déjà : ${existing.full_name} (${existing.patient_code}). Confirmez pour créer quand même, ou ouvrez le dossier existant.`
-          : `A patient with this national ID already exists: ${existing.full_name} (${existing.patient_code}). Confirm to create anyway, or open the existing record.`,
-      }
+
+  // CNI duplicate detection — now race-safe. Previously this was a
+  // plain SELECT-then-INSERT here in application code: two
+  // near-simultaneous submissions for the same new national ID could
+  // both pass the check before either insert landed, creating two real
+  // patient records for the same person. register_patient_with_duplicate_check
+  // does the check AND the insert inside one transaction, serialized by
+  // an advisory lock scoped to (clinic_id, national_id_number) — closing
+  // that race while leaving the deliberate "create anyway" path (still
+  // just confirm_duplicate=true, a separate call, never a race) fully
+  // intact.
+  const { data: rpcRows, error: rpcError } = await supabase.rpc('register_patient_with_duplicate_check', {
+    p_clinic_id: staff.clinicId,
+    p_full_name: fullName,
+    p_sex: sex || null,
+    p_date_of_birth: dateOfBirth || null,
+    p_estimated_age: estimatedAge ? parseInt(estimatedAge, 10) : null,
+    p_national_id_number: nationalIdNumber || null,
+    p_phone: phone || null,
+    p_quartier: quartier || null,
+    p_city: city || null,
+    p_next_of_kin_name: nextOfKinName || null,
+    p_next_of_kin_phone: nextOfKinPhone || null,
+    p_allergies: allergies || null,
+    p_chronic_conditions: chronicConditions || null,
+    p_payment_category: paymentCategory || 'cash',
+    p_created_by: staff.staffId,
+    p_confirm_duplicate: confirmDuplicate,
+  })
+
+  if (rpcError) {
+    console.error('register_patient_with_duplicate_check failed:', rpcError)
+    return { error: staff.preferredLanguage === 'fr'
+      ? 'Impossible d\'enregistrer le patient. Réessayez.'
+      : 'Could not save the patient. Please try again.' }
+  }
+
+  const result = rpcRows?.[0]
+
+  if (result?.duplicate_found) {
+    return {
+      duplicateWarning: true,
+      existingPatient: { id: result.existing_patient_id, fullName: result.existing_full_name, patientCode: result.existing_patient_code },
+      error: staff.preferredLanguage === 'fr'
+        ? `Un patient avec ce numéro CNI existe déjà : ${result.existing_full_name} (${result.existing_patient_code}). Confirmez pour créer quand même, ou ouvrez le dossier existant.`
+        : `A patient with this national ID already exists: ${result.existing_full_name} (${result.existing_patient_code}). Confirm to create anyway, or open the existing record.`,
     }
   }
 
-  const { data, error } = await supabase
-    .from('patients')
-    .insert({
-      clinic_id: staff.clinicId,
-      full_name: fullName,
-      sex: sex || null,
-      date_of_birth: dateOfBirth || null,
-      estimated_age: estimatedAge ? parseInt(estimatedAge, 10) : null,
-      national_id_number: nationalIdNumber || null,
-      phone: phone || null,
-      quartier: quartier || null,
-      city: city || null,
-      next_of_kin_name: nextOfKinName || null,
-      next_of_kin_phone: nextOfKinPhone || null,
-      allergies: allergies || null,
-      chronic_conditions: chronicConditions || null,
-      payment_category: paymentCategory || 'cash',
-      created_by: staff.staffId,
-    })
-    .select('id, patient_code')
-    .single()
-
-  if (error) {
-    // RLS denial or a real DB error both land here. Not distinguishing
-    // between them in the message — a receptionist doesn't need to know
-    // it was RLS specifically, just that the save didn't go through.
+  if (!result?.new_patient_id) {
     return { error: staff.preferredLanguage === 'fr'
       ? 'Impossible d\'enregistrer le patient. Réessayez.'
       : 'Could not save the patient. Please try again.' }
@@ -116,7 +116,7 @@ export async function createPatient(formData: FormData): Promise<CreatePatientRe
   if (paymentCategory !== 'cash' && insurerId && policyNumber) {
     const { error: insuranceError } = await supabase.from('patient_insurance').insert({
       clinic_id: staff.clinicId,
-      patient_id: data.id,
+      patient_id: result.new_patient_id,
       insurer_id: insurerId,
       policy_number: policyNumber,
       policyholder_name: policyholderName || null,
@@ -134,5 +134,5 @@ export async function createPatient(formData: FormData): Promise<CreatePatientRe
   // After registration, go straight to the appointments/reception screen
   // with the new patient pre-selected for scheduling — the nurse or
   // receptionist can immediately book or walk the patient in from there.
-  redirect(`/reception?tab=appointments&new_patient=${data.id}`)
+  redirect(`/reception?tab=appointments&new_patient=${result.new_patient_id}`)
 }

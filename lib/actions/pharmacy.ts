@@ -23,6 +23,7 @@ export async function updateProduct(productId: string, formData: FormData) {
   const { error } = await supabase.from('products').update({
     name,
     name_fr: (formData.get('name_fr') as string)?.trim() || name,
+    generic_name: (formData.get('generic_name') as string)?.trim() || null,
     drug_class_id: (formData.get('drug_class_id') as string) || null,
     // Was reconstructing this from 'form'/'strength' fields that only
     // exist on the separate create-product form — InlineEditProductPanel
@@ -97,6 +98,7 @@ export async function createProduct(formData: FormData) {
     sku,
     name,
     name_fr: (formData.get('name_fr') as string)?.trim() || name,
+    generic_name: (formData.get('generic_name') as string)?.trim() || null,
     drug_class_id: (formData.get('drug_class_id') as string) || null,
     dosage_form: (() => { const f = (formData.get('form') as string)?.trim(); const st = (formData.get('strength') as string)?.trim(); return st && f ? `${st} ${f}` : (st || f || null) })(),
     unit: (formData.get('unit') as string)?.trim() || null,

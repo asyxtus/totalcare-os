@@ -28,13 +28,6 @@ export default function ProductForm({ drugClasses }: { drugClasses: DrugClass[] 
       setError(result.error)
     } else {
       setSuccess(true)
-      // The actual fix: previously the form stayed fully filled in after
-      // a successful save, with only a success message that vanished
-      // after 2.5s. Someone who missed that brief message would see a
-      // form that still looked unsubmitted and — since disabled={submitting}
-      // only blocks a fast double-click, not a deliberate second click
-      // later — could genuinely re-submit the same product. Clearing the
-      // form is what actually prevents that, not just faster feedback.
       formRef.current?.reset()
       setTimeout(() => setSuccess(false), 4000)
     }
@@ -50,6 +43,10 @@ export default function ProductForm({ drugClasses }: { drugClasses: DrugClass[] 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
         <input name="name" placeholder={lang==="fr"?"Nom du produit *":"Product name *"} required style={inputStyle} />
         <input name="name_fr" placeholder={lang==="fr"?"Nom (français, si différent)":"Name (French, if different)"} style={inputStyle} />
+        {/* Generic/INN name — distinct from the (possibly brand) product
+            name above, e.g. "Amoxicilline" as the generic for a branded
+            "Amoxil". Optional: not every product needs one. */}
+        <input name="generic_name" placeholder={lang==="fr"?"Nom générique / DCI (optionnel)":"Generic / INN name (optional)"} style={inputStyle} />
         <select name="drug_class_id" style={inputStyle} defaultValue="">
           <option value="">{lang==="fr"?"Classe thérapeutique (optionnel)":"Drug class (optional)"}</option>
           {drugClasses.map((d) => <option key={d.id} value={d.id}>{d.name_fr}</option>)}
