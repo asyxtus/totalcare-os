@@ -287,6 +287,11 @@ export async function dispensePrescriptionItem(
   const manualPrice = formData.get('manual_unit_price_xaf') as string
   const counselingNotes = (formData.get('counseling_notes') as string)?.trim()
   const productIdOverride = (formData.get('product_id_override') as string) || null
+  // Patient brought this medication themselves (bought outside the
+  // clinic) — dispensing still needs to happen so the MAR safety check
+  // can be satisfied, but no price, no stock movement, and no charge to
+  // the patient's bill.
+  const patientSupplied = formData.get('patient_supplied') === 'true'
 
   if (!quantity || quantity <= 0) {
     return { error: 'Quantité invalide.' }
@@ -302,6 +307,7 @@ export async function dispensePrescriptionItem(
     p_override_approved_by: null,
     p_manual_unit_price_xaf: manualPrice ? parseFloat(manualPrice) : null,
     p_product_id_override: productIdOverride,
+    p_patient_supplied: patientSupplied,
   })
 
   if (error) return friendlyError('dispense_prescription_item', 'Impossible de dispenser ce médicament.', error)

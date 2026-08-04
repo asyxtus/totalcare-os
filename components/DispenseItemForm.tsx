@@ -35,6 +35,7 @@ export default function DispenseItemForm({
   const [submitting, setSubmitting] = useState(false)
   const [quantity, setQuantity] = useState('')
   const [dispensedChargeId, setDispensedChargeId] = useState<string | null>(null)
+  const [patientSupplied, setPatientSupplied] = useState(false)
   // Product override — when pharmacist selects a different dosage
   const [overrideProductId, setOverrideProductId] = useState<string>('')
 
@@ -53,6 +54,7 @@ export default function DispenseItemForm({
     setSubmitting(true)
     // Inject the override product ID if the pharmacist selected one
     if (overrideProductId) formData.set('product_id_override', overrideProductId)
+    formData.set('patient_supplied', patientSupplied ? 'true' : 'false')
     const result = await dispensePrescriptionItem(prescriptionId, itemId, formData)
     if (result && 'error' in result && result.error) {
       setError(result.error)
@@ -68,8 +70,28 @@ export default function DispenseItemForm({
 
   return (
     <div>
+      {/* Patient-supplied toggle — for medication the patient bought
+          outside the clinic and brought in to be administered. This
+          still needs to go through "dispensing" so the nursing MAR
+          safety check (has this actually been dispensed?) can be
+          satisfied, but with no price, no stock movement, and no charge
+          to the patient's bill for something the clinic didn't sell. */}
+      <label style={{
+        display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer',
+        padding: '8px 10px', borderRadius: 'var(--radius-sm)', marginBottom: '8px',
+        background: patientSupplied ? 'var(--color-warning-bg)' : 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+      }}>
+        <input type="checkbox" checked={patientSupplied} onChange={(e) => setPatientSupplied(e.target.checked)} />
+        <span style={{ color: patientSupplied ? 'var(--color-warning-text)' : 'var(--color-text-primary)', fontWeight: patientSupplied ? 500 : 400 }}>
+          {lang === 'fr'
+            ? "Apporté par le patient — achat externe (pas de facturation, pas de déduction du stock)"
+            : "Patient-supplied — bought outside (no charge, no stock deduction)"}
+        </span>
+      </label>
+
       {/* Product selector — shown when there are alternatives with stock */}
-      {alternatives.length > 1 && (
+      {!patientSupplied && alternatives.length > 1 && (
         <div style={{ marginBottom: '8px' }}>
           <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', margin: '0 0 4px' }}>
             {lang === 'fr'
@@ -110,7 +132,7 @@ export default function DispenseItemForm({
       )}
 
       {/* Stock and price display for single product */}
-      {(effectiveOnHand !== undefined || effectivePriceXaf !== undefined) && (
+      {!patientSupplied && (effectiveOnHand !== undefined || effectivePriceXaf !== undefined) && (
         <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>
           {effectiveOnHand !== undefined && (
             <span style={{ color: effectiveOnHand < remaining ? 'var(--color-critical-text)' : 'var(--color-text-secondary)' }}>
@@ -153,7 +175,9 @@ export default function DispenseItemForm({
           </select>
         )}
 
-        {needsManualPrice && (
+        {/* No price needed at all for a patient-supplied medication —
+            there's genuinely nothing to bill. */}
+        {needsManualPrice && !patientSupplied && (
           <input
             name="manual_unit_price_xaf"
             type="number"
