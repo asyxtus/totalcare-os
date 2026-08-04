@@ -115,9 +115,16 @@ export default async function DoctorPage() {
     hasCritical: visitsWithCriticalResult.has(v.id),
   }))
 
+  // THE FIX: explicit clinic_id filter on both queries — previously
+  // relied on RLS alone, which leaked another clinic's doctors into
+  // this list for any account that happens to also be an active
+  // platform admin (see migration 143). staff_secondary_roles is joined
+  // to staff without its own clinic_id column, so it's filtered via the
+  // nested staff:staff_id(...) relationship instead.
   const { data: primaryDoctors } = await supabase
     .from('staff')
     .select('id, full_name')
+    .eq('clinic_id', staff.clinicId)
     .eq('role', 'doctor')
     .eq('is_active', true)
 
@@ -126,11 +133,11 @@ export default async function DoctorPage() {
   // should still show up here as someone a patient can be assigned to.
   const { data: secondaryDoctorRows } = await supabase
     .from('staff_secondary_roles')
-    .select('staff:staff_id(id, full_name, is_active)')
+    .select('staff:staff_id(id, full_name, is_active, clinic_id)')
     .eq('role', 'doctor')
   const secondaryDoctors = (secondaryDoctorRows ?? [])
     .map((r: any) => r.staff)
-    .filter((s: any) => s?.is_active)
+    .filter((s: any) => s?.is_active && s?.clinic_id === staff.clinicId)
 
   const doctorList = [...(primaryDoctors ?? []), ...secondaryDoctors]
     .filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i)

@@ -114,9 +114,16 @@ const VISIT_STATUS_LABELS_FR: Record<string, string> = {
       .order('price_xaf', { ascending: true })
     consultationTypes = prices ?? []
 
+    // THE FIX: explicit clinic_id filter — this relied on RLS alone
+    // before, which leaked another clinic's doctors into this dropdown
+    // for any account that happens to also be an active platform admin
+    // (staff_select's RLS briefly allowed cross-clinic reads for such
+    // accounts; see migration 143). Never rely on RLS alone for a query
+    // like this when an explicit filter costs nothing.
     const { data: doctorList } = await supabase
       .from('staff')
       .select('id, full_name')
+      .eq('clinic_id', staff.clinicId)
       .eq('role', 'doctor')
       .eq('is_active', true)
       .order('full_name')

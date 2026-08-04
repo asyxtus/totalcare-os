@@ -41,9 +41,16 @@ export default async function ReceptionPage({
     .eq('status', 'waiting_consultation')
     .order('created_at', { ascending: true })
 
+  // THE FIX: explicit clinic_id filter on both doctor queries — previously
+  // relied on RLS alone, which leaked another clinic's doctors into this
+  // list for any account that happens to also be an active platform
+  // admin (see migration 143). staff_secondary_roles has no clinic_id
+  // of its own, so it's filtered through the nested staff:staff_id(...)
+  // relationship instead.
   const { data: primaryDoctors } = await supabase
     .from('staff')
     .select('id, full_name')
+    .eq('clinic_id', staff.clinicId)
     .eq('role', 'doctor')
     .eq('is_active', true)
 
@@ -52,11 +59,11 @@ export default async function ReceptionPage({
   // show up here as someone a patient can be assigned/checked in to.
   const { data: secondaryDoctorRows } = await supabase
     .from('staff_secondary_roles')
-    .select('staff:staff_id(id, full_name, is_active)')
+    .select('staff:staff_id(id, full_name, is_active, clinic_id)')
     .eq('role', 'doctor')
   const secondaryDoctors = (secondaryDoctorRows ?? [])
     .map((r: any) => r.staff)
-    .filter((s: any) => s?.is_active)
+    .filter((s: any) => s?.is_active && s?.clinic_id === staff.clinicId)
 
   const doctorList = [...(primaryDoctors ?? []), ...secondaryDoctors]
     .filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i)
