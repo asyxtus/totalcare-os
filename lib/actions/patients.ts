@@ -32,30 +32,17 @@ export async function createPatient(formData: FormData): Promise<CreatePatientRe
   const policyNumber = (formData.get('policy_number') as string)?.trim()
   const policyholderName = (formData.get('policyholder_name') as string)?.trim()
 
-  if (paymentCategory !== 'cash' && (!insurerId || !policyNumber)) {
-    return { error: staff.preferredLanguage === 'fr' ? 'Sélectionnez un assureur et indiquez le numéro de police pour une catégorie de paiement autre que comptant.' : 'Select an insurer and provide a policy number for a non-cash payment category.' }
-  }
+  if (paymentCategory !== 'cash' && (!insurerId || !policyNumber)) return { error: staff.preferredLanguage === 'fr' ? 'Sélectionnez un assureur et indiquez le numéro de police pour une catégorie de paiement autre que comptant.' : 'Select an insurer and provide a policy number for a non-cash payment category.' }
   if (!fullName) return { error: staff.preferredLanguage === 'fr' ? 'Le nom complet est requis.' : 'Full name is required.' }
   if (!dateOfBirth && !estimatedAge) return { error: staff.preferredLanguage === 'fr' ? 'Indiquez soit la date de naissance, soit un âge estimé.' : 'Provide either a date of birth or an estimated age.' }
 
   const confirmDuplicate = formData.get('confirm_duplicate') === 'true'
   const { data: rpcRows, error: rpcError } = await supabase.rpc('register_patient_with_duplicate_check', {
-    p_clinic_id: staff.clinicId,
-    p_full_name: fullName,
-    p_sex: sex || null,
-    p_date_of_birth: dateOfBirth || null,
-    p_estimated_age: estimatedAge ? parseInt(estimatedAge, 10) : null,
-    p_national_id_number: nationalIdNumber || null,
-    p_phone: phone || null,
-    p_quartier: quartier || null,
-    p_city: city || null,
-    p_next_of_kin_name: nextOfKinName || null,
-    p_next_of_kin_phone: nextOfKinPhone || null,
-    p_allergies: allergies || null,
-    p_chronic_conditions: chronicConditions || null,
-    p_payment_category: paymentCategory || 'cash',
-    p_created_by: staff.staffId,
-    p_confirm_duplicate: confirmDuplicate,
+    p_clinic_id: staff.clinicId, p_full_name: fullName, p_sex: sex || null, p_date_of_birth: dateOfBirth || null,
+    p_estimated_age: estimatedAge ? parseInt(estimatedAge, 10) : null, p_national_id_number: nationalIdNumber || null,
+    p_phone: phone || null, p_quartier: quartier || null, p_city: city || null, p_next_of_kin_name: nextOfKinName || null,
+    p_next_of_kin_phone: nextOfKinPhone || null, p_allergies: allergies || null, p_chronic_conditions: chronicConditions || null,
+    p_payment_category: paymentCategory || 'cash', p_created_by: staff.staffId, p_confirm_duplicate: confirmDuplicate,
   })
   if (rpcError) return { error: staff.preferredLanguage === 'fr' ? "Impossible d'enregistrer le patient. Réessayez." : 'Could not save the patient. Please try again.' }
   const result = rpcRows?.[0]
@@ -73,7 +60,6 @@ export async function updatePatient(patientId: string, formData: FormData): Prom
   const staff = await getCurrentStaff()
   const supabase = await createClient()
   const lang = staff.preferredLanguage
-
   if (!patientId) return { error: lang === 'fr' ? 'Patient introuvable.' : 'Patient not found.' }
 
   const fullName = (formData.get('full_name') as string)?.trim()
@@ -104,10 +90,8 @@ export async function updatePatient(patientId: string, formData: FormData): Prom
     if (duplicate) return { error: lang === 'fr' ? `Ce numéro CNI est déjà utilisé par ${duplicate.full_name} (${duplicate.patient_code}).` : `This national ID is already used by ${duplicate.full_name} (${duplicate.patient_code}).` }
   }
 
-  const { data: existing, error: fetchError } = await supabase.from('patients').select('id').eq('id', patientId).eq('clinic_id', staff.clinicId).maybeSingle()
-  if (fetchError || !existing) {
-    return { error: lang === 'fr' ? `Patient introuvable dans cette clinique.${fetchError ? ` [DB: ${fetchError.message}]` : ''}` : `Patient not found in this clinic.${fetchError ? ` [DB: ${fetchError.message}]` : ''}` }
-  }
+  const { data: existing, error: fetchError } = await supabase.from('patients').select('id, estimated_age_recorded_at').eq('id', patientId).eq('clinic_id', staff.clinicId).maybeSingle()
+  if (fetchError || !existing) return { error: lang === 'fr' ? `Patient introuvable dans cette clinique.${fetchError ? ` [DB: ${fetchError.message}]` : ''}` : `Patient not found in this clinic.${fetchError ? ` [DB: ${fetchError.message}]` : ''}` }
 
   if (paymentCategory !== 'cash') {
     if (!insurerId || !policyNumber) return { error: lang === 'fr' ? 'Un assureur et un numéro de police sont requis pour ce mode de paiement.' : 'An insurer and policy number are required for this payment category.' }
@@ -115,21 +99,19 @@ export async function updatePatient(patientId: string, formData: FormData): Prom
     if (insurerError || !insurer) return { error: lang === 'fr' ? `Assureur invalide ou inaccessible.${insurerError ? ` [DB: ${insurerError.message}]` : ''}` : `Invalid or inaccessible insurer.${insurerError ? ` [DB: ${insurerError.message}]` : ''}` }
   }
 
+  // estimated_age_recorded_at is NOT NULL in the production schema. It is
+  // a record-keeping timestamp, not a nullable DOB/age field, so never set
+  // it to NULL when a patient has a known DOB. Preserve the existing value
+  // where possible and fall back to now for legacy rows that lack it.
+  const estimatedAgeRecordedAt = existing.estimated_age_recorded_at ?? new Date().toISOString()
+
   const { data: updated, error } = await supabase.from('patients').update({
-    full_name: fullName,
-    sex,
-    date_of_birth: dateOfBirth,
+    full_name: fullName, sex, date_of_birth: dateOfBirth,
     estimated_age: dateOfBirth ? null : estimatedAge,
-    estimated_age_recorded_at: dateOfBirth ? null : (estimatedAge !== null ? new Date().toISOString() : null),
-    national_id_number: nationalIdNumber,
-    phone,
-    quartier,
-    city,
-    next_of_kin_name: nextOfKinName,
-    next_of_kin_phone: nextOfKinPhone,
-    allergies,
-    chronic_conditions: chronicConditions,
-    payment_category: paymentCategory,
+    estimated_age_recorded_at: estimatedAge !== null ? new Date().toISOString() : estimatedAgeRecordedAt,
+    national_id_number: nationalIdNumber, phone, quartier, city,
+    next_of_kin_name: nextOfKinName, next_of_kin_phone: nextOfKinPhone,
+    allergies, chronic_conditions: chronicConditions, payment_category: paymentCategory,
   }).eq('id', patientId).eq('clinic_id', staff.clinicId).select('id').maybeSingle()
 
   if (error || !updated) {
@@ -154,7 +136,6 @@ export async function updatePatient(patientId: string, formData: FormData): Prom
   }
 
   await supabase.from('audit_log').insert({ clinic_id: staff.clinicId, staff_id: staff.staffId, action: 'patient.updated', entity_type: 'patient', entity_id: patientId, details: { changed_fields: ['full_name', 'sex', 'date_of_birth', 'estimated_age', 'national_id_number', 'phone', 'quartier', 'city', 'next_of_kin_name', 'next_of_kin_phone', 'allergies', 'chronic_conditions', 'payment_category', 'insurance'] } })
-
   revalidatePath(`/patients/${patientId}`)
   revalidatePath('/patients')
   return { success: true }
