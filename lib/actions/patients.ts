@@ -28,9 +28,6 @@ export async function createPatient(formData: FormData): Promise<CreatePatientRe
   const nextOfKinPhone = (formData.get('next_of_kin_phone') as string)?.trim()
   const allergies = (formData.get('allergies') as string)?.trim()
   const chronicConditions = (formData.get('chronic_conditions') as string)?.trim()
-  // No longer hard-coded — the Insurance module now exists. Still
-  // validated below (a non-cash category requires an actual insurer +
-  // policy number, not just a label with no coverage data behind it).
   const paymentCategory = (formData.get('payment_category') as string) || 'cash'
   const insurerId = formData.get('insurer_id') as string
   const policyNumber = (formData.get('policy_number') as string)?.trim()
@@ -42,34 +39,13 @@ export async function createPatient(formData: FormData): Promise<CreatePatientRe
       : 'Select an insurer and provide a policy number for a non-cash payment category.' }
   }
 
-  if (!fullName) {
-    return { error: staff.preferredLanguage === 'fr'
-      ? 'Le nom complet est requis.'
-      : 'Full name is required.' }
-  }
-
-  // Cameroon-specific reality, per the schema design: a patient may know
-  // neither field precisely, but should have at least one indication of
-  // age — not enforced as a hard DB constraint, but worth catching here
-  // with a clear message rather than silently saving an ageless record.
+  if (!fullName) return { error: staff.preferredLanguage === 'fr' ? 'Le nom complet est requis.' : 'Full name is required.' }
   if (!dateOfBirth && !estimatedAge) {
-    return { error: staff.preferredLanguage === 'fr'
-      ? 'Indiquez soit la date de naissance, soit un âge estimé.'
-      : 'Provide either a date of birth or an estimated age.' }
+    return { error: staff.preferredLanguage === 'fr' ? 'Indiquez soit la date de naissance, soit un âge estimé.' : 'Provide either a date of birth or an estimated age.' }
   }
 
   const confirmDuplicate = formData.get('confirm_duplicate') === 'true'
 
-  // CNI duplicate detection — now race-safe. Previously this was a
-  // plain SELECT-then-INSERT here in application code: two
-  // near-simultaneous submissions for the same new national ID could
-  // both pass the check before either insert landed, creating two real
-  // patient records for the same person. register_patient_with_duplicate_check
-  // does the check AND the insert inside one transaction, serialized by
-  // an advisory lock scoped to (clinic_id, national_id_number) — closing
-  // that race while leaving the deliberate "create anyway" path (still
-  // just confirm_duplicate=true, a separate call, never a race) fully
-  // intact.
   const { data: rpcRows, error: rpcError } = await supabase.rpc('register_patient_with_duplicate_check', {
     p_clinic_id: staff.clinicId,
     p_full_name: fullName,
@@ -91,13 +67,10 @@ export async function createPatient(formData: FormData): Promise<CreatePatientRe
 
   if (rpcError) {
     console.error('register_patient_with_duplicate_check failed:', rpcError)
-    return { error: staff.preferredLanguage === 'fr'
-      ? 'Impossible d\'enregistrer le patient. Réessayez.'
-      : 'Could not save the patient. Please try again.' }
+    return { error: staff.preferredLanguage === 'fr' ? "Impossible d'enregistrer le patient. Réessayez." : 'Could not save the patient. Please try again.' }
   }
 
   const result = rpcRows?.[0]
-
   if (result?.duplicate_found) {
     return {
       duplicateWarning: true,
@@ -108,13 +81,12 @@ export async function createPatient(formData: FormData): Promise<CreatePatientRe
     }
   }
 
-  if (!result?.new_patient_id) {
-    return { error: staff.preferredLanguage === 'fr'
-      ? 'Impossible d\'enregistrer le patient. Réessayez.'
-      : 'Could not save the patient. Please try again.' }
-  }
+  if (!result?.new_patient_id) return { error: staff.preferredLanguage === 'fr' ? "Impossible d'enregistrer le patient. Réessayez." : 'Could not save the patient. Please try again.' }
 
   if (paymentCategory !== 'cash' && insurerId && policyNumber) {
+    const { data: insurer } = await supabase.from('insurers').select('id').eq('id', insurerId).eq('clinic_id', staff.clinicId).eq('is_active', true).maybeSingle()
+    if (!insurer) return { error: staff.preferredLanguage === 'fr' ? 'Assureur invalide.' : 'Invalid insurer.' }
+
     const { error: insuranceError } = await supabase.from('patient_insurance').insert({
       clinic_id: staff.clinicId,
       patient_id: result.new_patient_id,
@@ -123,21 +95,13 @@ export async function createPatient(formData: FormData): Promise<CreatePatientRe
       policyholder_name: policyholderName || null,
       created_by: staff.staffId,
     })
-    // Not blocking registration on this failing — the patient record
-    // itself is already saved. Worth surfacing, but a receptionist
-    // shouldn't lose the whole registration over a coverage-detail
-    // hiccup; insurance can be added from Patient Account afterward.
-    if (insuranceError) {
-      console.error('patient_insurance insert failed:', insuranceError)
-    }
+    if (insuranceError) console.error('patient_insurance insert failed:', insuranceError)
   }
 
-  // After registration, go straight to the appointments/reception screen
-  // with the new patient pre-selected for scheduling — the nurse or
-  // receptionist can immediately book or walk the patient in from there.
   redirect(`/reception?tab=appointments&new_patient=${result.new_patient_id}`)
 }
 
+/** Update demographic/contact information and the patient's active insurance coverage. */
 export async function updatePatient(patientId: string, formData: FormData): Promise<{ error?: string; success?: boolean }> {
   const staff = await getCurrentStaff()
   const supabase = await createClient()
@@ -159,67 +123,81 @@ export async function updatePatient(patientId: string, formData: FormData): Prom
   const allergies = (formData.get('allergies') as string)?.trim() || null
   const chronicConditions = (formData.get('chronic_conditions') as string)?.trim() || null
   const paymentCategory = (formData.get('payment_category') as string) || 'cash'
+  const insurerId = (formData.get('insurer_id') as string)?.trim() || null
+  const policyNumber = (formData.get('policy_number') as string)?.trim() || null
+  const policyholderName = (formData.get('policyholder_name') as string)?.trim() || null
 
   if (!fullName) return { error: lang === 'fr' ? 'Le nom complet est requis.' : 'Full name is required.' }
-  if (!dateOfBirth && (estimatedAge === null || Number.isNaN(estimatedAge))) {
-    return { error: lang === 'fr' ? 'Indiquez la date de naissance ou un âge estimé.' : 'Provide a date of birth or an estimated age.' }
-  }
-  if (dateOfBirth && estimatedAgeRaw) {
-    return { error: lang === 'fr' ? 'Utilisez soit la date de naissance, soit l’âge estimé, pas les deux.' : 'Use either date of birth or estimated age, not both.' }
-  }
-  if (estimatedAge !== null && (Number.isNaN(estimatedAge) || estimatedAge < 0 || estimatedAge > 130)) {
-    return { error: lang === 'fr' ? 'Âge estimé invalide.' : 'Invalid estimated age.' }
-  }
+  if (!dateOfBirth && (estimatedAge === null || Number.isNaN(estimatedAge))) return { error: lang === 'fr' ? 'Indiquez la date de naissance ou un âge estimé.' : 'Provide a date of birth or an estimated age.' }
+  if (dateOfBirth && estimatedAgeRaw) return { error: lang === 'fr' ? 'Utilisez soit la date de naissance, soit l’âge estimé, pas les deux.' : 'Use either date of birth or estimated age, not both.' }
+  if (estimatedAge !== null && (Number.isNaN(estimatedAge) || estimatedAge < 0 || estimatedAge > 130)) return { error: lang === 'fr' ? 'Âge estimé invalide.' : 'Invalid estimated age.' }
 
   if (nationalIdNumber) {
-    const { data: duplicate } = await supabase
-      .from('patients')
-      .select('id, full_name, patient_code')
-      .eq('clinic_id', staff.clinicId)
-      .eq('national_id_number', nationalIdNumber)
-      .neq('id', patientId)
-      .maybeSingle()
-    if (duplicate) {
-      return { error: lang === 'fr'
-        ? `Ce numéro CNI est déjà utilisé par ${duplicate.full_name} (${duplicate.patient_code}).`
-        : `This national ID is already used by ${duplicate.full_name} (${duplicate.patient_code}).` }
-    }
+    const { data: duplicate } = await supabase.from('patients').select('id, full_name, patient_code').eq('clinic_id', staff.clinicId).eq('national_id_number', nationalIdNumber).neq('id', patientId).maybeSingle()
+    if (duplicate) return { error: lang === 'fr' ? `Ce numéro CNI est déjà utilisé par ${duplicate.full_name} (${duplicate.patient_code}).` : `This national ID is already used by ${duplicate.full_name} (${duplicate.patient_code}).` }
   }
 
-  const { data: existing, error: fetchError } = await supabase
-    .from('patients')
-    .select('id')
-    .eq('id', patientId)
-    .eq('clinic_id', staff.clinicId)
-    .maybeSingle()
+  const { data: existing, error: fetchError } = await supabase.from('patients').select('id').eq('id', patientId).eq('clinic_id', staff.clinicId).maybeSingle()
   if (fetchError || !existing) return { error: lang === 'fr' ? 'Patient introuvable dans cette clinique.' : 'Patient not found in this clinic.' }
 
-  const { data: updated, error } = await supabase
-    .from('patients')
-    .update({
-      full_name: fullName,
-      sex,
-      date_of_birth: dateOfBirth,
-      estimated_age: dateOfBirth ? null : estimatedAge,
-      estimated_age_recorded_at: dateOfBirth ? null : (estimatedAge !== null ? new Date().toISOString() : null),
-      national_id_number: nationalIdNumber,
-      phone,
-      quartier,
-      city,
-      next_of_kin_name: nextOfKinName,
-      next_of_kin_phone: nextOfKinPhone,
-      allergies,
-      chronic_conditions: chronicConditions,
-      payment_category: paymentCategory,
-    })
-    .eq('id', patientId)
-    .eq('clinic_id', staff.clinicId)
-    .select('id')
-    .maybeSingle()
+  // Validate insurance before changing the patient record so an invalid
+  // insurer cannot leave the demographic update half-complete.
+  if (paymentCategory !== 'cash') {
+    if (!insurerId || !policyNumber) return { error: lang === 'fr' ? 'Un assureur et un numéro de police sont requis pour ce mode de paiement.' : 'An insurer and policy number are required for this payment category.' }
+    const { data: insurer } = await supabase.from('insurers').select('id').eq('id', insurerId).eq('clinic_id', staff.clinicId).eq('is_active', true).maybeSingle()
+    if (!insurer) return { error: lang === 'fr' ? 'Assureur invalide ou inactif.' : 'Invalid or inactive insurer.' }
+  }
+
+  const { data: updated, error } = await supabase.from('patients').update({
+    full_name: fullName,
+    sex,
+    date_of_birth: dateOfBirth,
+    estimated_age: dateOfBirth ? null : estimatedAge,
+    estimated_age_recorded_at: dateOfBirth ? null : (estimatedAge !== null ? new Date().toISOString() : null),
+    national_id_number: nationalIdNumber,
+    phone,
+    quartier,
+    city,
+    next_of_kin_name: nextOfKinName,
+    next_of_kin_phone: nextOfKinPhone,
+    allergies,
+    chronic_conditions: chronicConditions,
+    payment_category: paymentCategory,
+  }).eq('id', patientId).eq('clinic_id', staff.clinicId).select('id').maybeSingle()
 
   if (error || !updated) {
     console.error('updatePatient failed:', error)
     return { error: lang === 'fr' ? 'Impossible de mettre à jour le patient. Vérifiez vos droits et réessayez.' : 'Could not update the patient. Check your permissions and try again.' }
+  }
+
+  // Keep exactly one active coverage. Setting cash removes active coverage;
+  // switching/adding a non-cash category updates the existing active record
+  // when possible and otherwise creates one.
+  const { data: activeCoverage } = await supabase.from('patient_insurance')
+    .select('id')
+    .eq('patient_id', patientId)
+    .eq('clinic_id', staff.clinicId)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (paymentCategory === 'cash') {
+    if (activeCoverage) {
+      const { error: insuranceError } = await supabase.from('patient_insurance').update({ is_active: false, coverage_end_date: new Date().toISOString().slice(0, 10) }).eq('id', activeCoverage.id).eq('clinic_id', staff.clinicId)
+      if (insuranceError) console.error('patient insurance deactivation failed:', insuranceError)
+    }
+  } else if (activeCoverage) {
+    const { error: insuranceError } = await supabase.from('patient_insurance').update({ insurer_id: insurerId, policy_number: policyNumber, policyholder_name: policyholderName }).eq('id', activeCoverage.id).eq('clinic_id', staff.clinicId)
+    if (insuranceError) console.error('patient insurance update failed:', insuranceError)
+  } else {
+    const { error: insuranceError } = await supabase.from('patient_insurance').insert({
+      clinic_id: staff.clinicId,
+      patient_id: patientId,
+      insurer_id: insurerId,
+      policy_number: policyNumber,
+      policyholder_name: policyholderName,
+      created_by: staff.staffId,
+    })
+    if (insuranceError) console.error('patient insurance insert failed:', insuranceError)
   }
 
   await supabase.from('audit_log').insert({
@@ -228,7 +206,7 @@ export async function updatePatient(patientId: string, formData: FormData): Prom
     action: 'patient.updated',
     entity_type: 'patient',
     entity_id: patientId,
-    details: { changed_fields: ['full_name', 'sex', 'date_of_birth', 'estimated_age', 'national_id_number', 'phone', 'quartier', 'city', 'next_of_kin_name', 'next_of_kin_phone', 'allergies', 'chronic_conditions', 'payment_category'] },
+    details: { changed_fields: ['full_name', 'sex', 'date_of_birth', 'estimated_age', 'national_id_number', 'phone', 'quartier', 'city', 'next_of_kin_name', 'next_of_kin_phone', 'allergies', 'chronic_conditions', 'payment_category', 'insurance'] },
   })
 
   revalidatePath(`/patients/${patientId}`)
