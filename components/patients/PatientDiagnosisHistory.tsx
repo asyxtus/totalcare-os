@@ -9,11 +9,23 @@ export default async function PatientDiagnosisHistory({
   const staff = await getCurrentStaff()
   const supabase = await createClient()
 
+  // Consultations belong to visits in the current schema; resolve the
+  // patient's consultations through their visit IDs instead of assuming
+  // consultations has a patient_id column.
+  const { data: visits } = await supabase
+    .from('visits')
+    .select('id')
+    .eq('clinic_id', staff.clinicId)
+    .eq('patient_id', patientId)
+
+  const visitIds = (visits ?? []).map((v) => v.id)
+  if (visitIds.length === 0) return null
+
   const { data: consultations } = await supabase
     .from('consultations')
     .select('id, started_at, visit_id')
     .eq('clinic_id', staff.clinicId)
-    .eq('patient_id', patientId)
+    .in('visit_id', visitIds)
     .order('started_at', { ascending: false })
 
   const consultationIds = (consultations ?? []).map((c) => c.id)
@@ -62,12 +74,11 @@ export default async function PatientDiagnosisHistory({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {rows.map((row) => (
                   <div key={row.id} style={{ display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
-                    {row.is_primary && (
-                      <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-accent)', minWidth: '52px' }}>
-                        {staff.preferredLanguage === 'fr' ? 'PRINC.' : 'PRIMARY'}
-                      </span>
-                    )}
-                    {!row.is_primary && <span style={{ minWidth: '52px', fontSize: '10px', color: 'var(--color-text-secondary)' }}>SECONDARY</span>}
+                    <span style={{ minWidth: '52px', fontSize: '10px', fontWeight: row.is_primary ? 600 : 400, color: row.is_primary ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>
+                      {row.is_primary
+                        ? (staff.preferredLanguage === 'fr' ? 'PRINC.' : 'PRIMARY')
+                        : (staff.preferredLanguage === 'fr' ? 'SECONDAIRE' : 'SECONDARY')}
+                    </span>
                     <span>{row.diagnosis}</span>
                     {row.icd10_code && (
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
