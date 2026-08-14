@@ -74,7 +74,6 @@ export async function completeConsultation(
     const primaryCount = diagnoses.filter((d) => d.isPrimary).length
     if (primaryCount === 0) diagnoses[0].isPrimary = true
     if (primaryCount > 1) {
-      // The first explicitly-primary diagnosis wins; all others become secondary.
       let primarySeen = false
       for (const diagnosis of diagnoses) {
         if (diagnosis.isPrimary && !primarySeen) primarySeen = true
@@ -84,56 +83,18 @@ export async function completeConsultation(
     diagnoses.forEach((d, index) => { d.sequence = index + 1 })
   }
 
-  const primaryDiagnosis = diagnoses.find((d) => d.isPrimary) ?? diagnoses[0]
+  const { error: consultationSaveError } = await supabase.rpc('save_consultation_diagnoses', {
+    p_clinic_id: staff.clinicId,
+    p_consultation_id: consultationId,
+    p_staff_id: staff.staffId,
+    p_subjective_notes: subjectiveNotes || null,
+    p_examination_notes: examinationNotes || null,
+    p_treatment_plan: treatmentPlan || null,
+    p_diagnoses: diagnoses,
+  })
 
-  const { error: consultationError } = await supabase
-    .from('consultations')
-    .update({
-      subjective_notes: subjectiveNotes || null,
-      examination_notes: examinationNotes || null,
-      // Legacy fields remain populated from the primary diagnosis so all
-      // existing reports/queries continue to work during the migration.
-      diagnosis: primaryDiagnosis?.diagnosis || null,
-      diagnosis_code: primaryDiagnosis?.icd10Code || null,
-      treatment_plan: treatmentPlan || null,
-    })
-    .eq('id', consultationId)
-
-  if (consultationError) {
-    return { error: `Impossible d'enregistrer la consultation : ${consultationError.message}` }
-  }
-
-  // Replace the structured diagnosis set atomically from the application's
-  // point of view. The legacy fields above are deliberately retained for
-  // backward-compatible reports and exports.
-  const { error: deleteDiagnosisError } = await supabase
-    .from('consultation_diagnoses')
-    .delete()
-    .eq('consultation_id', consultationId)
-    .eq('clinic_id', staff.clinicId)
-
-  if (deleteDiagnosisError) {
-    return { error: `Impossible de mettre à jour les diagnostics : ${deleteDiagnosisError.message}` }
-  }
-
-  if (diagnoses.length > 0) {
-    const diagnosisRows = diagnoses.map((d) => ({
-      clinic_id: staff.clinicId,
-      consultation_id: consultationId,
-      diagnosis: d.diagnosis,
-      icd10_code: d.icd10Code,
-      is_primary: d.isPrimary,
-      sequence: d.sequence,
-      created_by: staff.staffId,
-    }))
-
-    const { error: diagnosisInsertError } = await supabase
-      .from('consultation_diagnoses')
-      .insert(diagnosisRows)
-
-    if (diagnosisInsertError) {
-      return { error: `Impossible d'enregistrer les diagnostics : ${diagnosisInsertError.message}` }
-    }
+  if (consultationSaveError) {
+    return { error: `Impossible d'enregistrer la consultation : ${consultationSaveError.message}` }
   }
 
   // Prescription rows
