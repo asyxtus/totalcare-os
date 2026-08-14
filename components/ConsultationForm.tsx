@@ -35,6 +35,7 @@ interface Template {
 }
 
 interface Icd10Code { code: string; description_fr: string; category: string }
+interface DiagnosisEntry { diagnosis: string; icd10Code: string; isPrimary: boolean }
 interface LabOption { id: string; name: string; category: string }
 interface ProcedureOption { id: string; service_name: string; category: string; price_xaf: number }
 interface InitialValues {
@@ -62,7 +63,13 @@ const STR = {
     objective: 'O — Objectif',
     objectivePh: 'Observations cliniques, examens physiques…',
     assessment: 'A — Analyse',
-    diagPh: 'Diagnostic principal…',
+    diagPh: 'Rechercher ou saisir un diagnostic…',
+    primary: 'Diagnostic principal',
+    secondary: 'Diagnostic secondaire',
+    addDiagnosis: '+ Ajouter un diagnostic',
+    removeDiagnosis: 'Supprimer',
+    makePrimary: 'Définir comme principal',
+    noDiagnosis: 'Ajoutez au moins un diagnostic avant de terminer la consultation.',
     plan: 'P — Plan',
     planPh: 'Conduite à tenir, conseils, suivi…',
     template: 'Modèle de consultation',
@@ -111,7 +118,13 @@ const STR = {
     objective: 'O — Objective',
     objectivePh: 'Clinical observations, physical examination…',
     assessment: 'A — Assessment',
-    diagPh: 'Primary diagnosis…',
+    diagPh: 'Search or enter a diagnosis…',
+    primary: 'Primary diagnosis',
+    secondary: 'Secondary diagnosis',
+    addDiagnosis: '+ Add diagnosis',
+    removeDiagnosis: 'Remove',
+    makePrimary: 'Make primary',
+    noDiagnosis: 'Add at least one diagnosis before completing the consultation.',
     plan: 'P — Plan',
     planPh: 'Management, advice, follow-up…',
     template: 'Consultation template',
@@ -298,8 +311,7 @@ export default function ConsultationForm({
 
   const [subjective, setSubjective] = useState(initialValues.subjective)
   const [objective, setObjective] = useState(initialValues.objective)
-  const [diagnosis, setDiagnosis] = useState(initialValues.diagnosis)
-  const [diagnosisCode, setDiagnosisCode] = useState(initialValues.diagnosisCode)
+  const [diagnoses, setDiagnoses] = useState<DiagnosisEntry[]>(() => initialValues.diagnosis.trim() ? [{ diagnosis: initialValues.diagnosis, icd10Code: initialValues.diagnosisCode, isPrimary: true }] : [{ diagnosis: '', icd10Code: '', isPrimary: true }])
   const [treatmentPlan, setTreatmentPlan] = useState(initialValues.treatmentPlan)
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [rxRows, setRxRows] = useState<RxRow[]>([emptyRxRow()])
@@ -320,9 +332,34 @@ export default function ConsultationForm({
     const useEn = lang === 'en'
     setSubjective(useEn && tpl.subjective_prompt_en ? tpl.subjective_prompt_en : (tpl.subjective_prompt ?? ''))
     setObjective(useEn && tpl.objective_prompt_en ? tpl.objective_prompt_en : (tpl.objective_prompt ?? ''))
-    setDiagnosis(useEn && tpl.assessment_prompt_en ? tpl.assessment_prompt_en : (tpl.assessment_prompt ?? ''))
+    setDiagnoses(rows => {
+      const primary = rows.find(r => r.isPrimary) ?? rows[0]
+      if (!primary) return [{ diagnosis: useEn && tpl.assessment_prompt_en ? tpl.assessment_prompt_en : (tpl.assessment_prompt ?? ''), icd10Code: tpl.suggested_icd10_code ?? '', isPrimary: true }]
+      return rows.map(r => r.isPrimary ? { ...r, diagnosis: useEn && tpl.assessment_prompt_en ? tpl.assessment_prompt_en : (tpl.assessment_prompt ?? ''), icd10Code: tpl.suggested_icd10_code ?? r.icd10Code } : r)
+    })
     setTreatmentPlan(useEn && tpl.plan_prompt_en ? tpl.plan_prompt_en : (tpl.plan_prompt ?? ''))
-    if (tpl.suggested_icd10_code) setDiagnosisCode(tpl.suggested_icd10_code)
+  }
+
+  function updateDiagnosis(index: number, patch: Partial<DiagnosisEntry>) {
+    setDiagnoses(rows => rows.map((r, i) => i === index ? { ...r, ...patch } : r))
+  }
+
+  function addDiagnosis() {
+    setDiagnoses(rows => [...rows, { diagnosis: '', icd10Code: '', isPrimary: false }])
+  }
+
+  function removeDiagnosis(index: number) {
+    setDiagnoses(rows => {
+      if (rows.length === 1) return [{ diagnosis: '', icd10Code: '', isPrimary: true }]
+      const wasPrimary = rows[index].isPrimary
+      const next = rows.filter((_, i) => i !== index)
+      if (wasPrimary && next.length > 0) next[0] = { ...next[0], isPrimary: true }
+      return next
+    })
+  }
+
+  function makePrimary(index: number) {
+    setDiagnoses(rows => rows.map((r, i) => ({ ...r, isPrimary: i === index })))
   }
 
   function updateRxRow(index: number, patch: Partial<RxRow>) {
@@ -374,8 +411,9 @@ export default function ConsultationForm({
       {/* Hidden SOAP fields */}
       <input type="hidden" name="subjective_notes" value={subjective} />
       <input type="hidden" name="examination_notes" value={objective} />
-      <input type="hidden" name="diagnosis" value={diagnosis} />
-      <input type="hidden" name="diagnosis_code" value={diagnosisCode} />
+      <input type="hidden" name="diagnosis" value={(diagnoses.find(d => d.isPrimary) ?? diagnoses[0])?.diagnosis ?? ''} />
+      <input type="hidden" name="diagnosis_code" value={(diagnoses.find(d => d.isPrimary) ?? diagnoses[0])?.icd10Code ?? ''} />
+      <input type="hidden" name="diagnoses_json" value={JSON.stringify(diagnoses.filter(d => d.diagnosis.trim()).map((d, i) => ({ ...d, sequence: i + 1 })))} />
       <input type="hidden" name="treatment_plan" value={treatmentPlan} />
 
       {/* Template selector */}
@@ -409,20 +447,36 @@ export default function ConsultationForm({
         placeholder={t.objectivePh} style={{ ...inputStyle, resize: 'vertical', marginBottom: '1rem' }} />
 
       <p style={{ fontSize: '13px', fontWeight: 500, margin: '0 0 8px' }}>{t.assessment}</p>
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem' }}>
-        <input value={diagnosis} onChange={e => setDiagnosis(e.target.value)}
-          placeholder={t.diagPh} style={{ ...inputStyle, flex: 2 }} />
-        <select value={diagnosisCode} onChange={e => setDiagnosisCode(e.target.value)}
-          style={{ ...inputStyle, flex: 1 }}>
-          <option value="">{t.icd}</option>
-          {Object.entries(icd10ByCategory).map(([category, codes]) => (
-            <optgroup key={category} label={category}>
-              {codes.map(c => (
-                <option key={c.code} value={c.code}>{c.code} — {c.description_fr}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '1rem' }}>
+        {diagnoses.map((row, i) => (
+          <div key={i} style={{ border: row.isPrimary ? '1px solid var(--color-accent)' : '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', padding: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '7px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: row.isPrimary ? 'var(--color-accent)' : 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
+                {row.isPrimary ? t.primary : t.secondary}
+              </span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {!row.isPrimary && (
+                  <button type="button" onClick={() => makePrimary(i)} style={{ border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-accent)', borderRadius: 'var(--radius-sm)', padding: '3px 7px', fontSize: '10px', cursor: 'pointer' }}>{t.makePrimary}</button>
+                )}
+                {diagnoses.length > 1 && (
+                  <button type="button" onClick={() => removeDiagnosis(i)} style={{ border: 'none', background: 'transparent', color: 'var(--color-critical-text)', fontSize: '11px', cursor: 'pointer' }}>{t.removeDiagnosis}</button>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <input value={row.diagnosis} onChange={e => updateDiagnosis(i, { diagnosis: e.target.value })} placeholder={t.diagPh} style={{ ...inputStyle, flex: '2 1 280px' }} />
+              <select value={row.icd10Code} onChange={e => updateDiagnosis(i, { icd10Code: e.target.value })} style={{ ...inputStyle, flex: '1 1 220px' }}>
+                <option value="">{t.icd}</option>
+                {Object.entries(icd10ByCategory).map(([category, codes]) => (
+                  <optgroup key={category} label={category}>
+                    {codes.map(c => <option key={c.code} value={c.code}>{c.code} — {c.description_fr}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+          </div>
+        ))}
+        <button type="button" onClick={addDiagnosis} style={{ background: 'none', border: '1px dashed var(--color-border)', color: 'var(--color-accent)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', fontSize: '12px', cursor: 'pointer' }}>{t.addDiagnosis}</button>
       </div>
 
       <p style={{ fontSize: '13px', fontWeight: 500, margin: '0 0 8px' }}>{t.plan}</p>
