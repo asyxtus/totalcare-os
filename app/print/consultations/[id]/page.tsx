@@ -17,18 +17,27 @@ export default async function PrintConsultationPage({
   const { data: consultation, error } = await supabase
     .from('consultations')
     .select(`
-      id, started_at, completed_at, subjective_notes, examination_notes, diagnosis, diagnosis_code, treatment_plan,
+      id, clinic_id, started_at, completed_at, subjective_notes, examination_notes, diagnosis, diagnosis_code, treatment_plan,
       clinics(name, city, quartier, phone),
       visits(patients(full_name, patient_code, date_of_birth, estimated_age, sex), visit_reason),
       staff(full_name, license_number)
     `)
     .eq('id', id)
+    .eq('clinic_id', staff.clinicId)
     .maybeSingle()
 
-  if (error || !consultation) {
-    notFound()
-  }
+  if (error || !consultation) notFound()
 
+  const { data: diagnoses, error: diagnosisError } = await supabase
+    .from('consultation_diagnoses')
+    .select('id, diagnosis, icd10_code, is_primary, sequence')
+    .eq('consultation_id', consultation.id)
+    .eq('clinic_id', consultation.clinic_id)
+    .order('sequence', { ascending: true })
+
+  if (diagnosisError) console.error('Failed to load structured consultation diagnoses:', diagnosisError)
+
+  const structuredDiagnoses = diagnoses ?? []
   const clinic = consultation.clinics as any
   const patient = (consultation.visits as any)?.patients
   const visitReason = (consultation.visits as any)?.visit_reason
@@ -50,11 +59,18 @@ export default async function PrintConsultationPage({
     reason: lang === 'fr' ? 'Motif' : 'Reason',
     subjective: lang === 'fr' ? 'Subjectif' : 'Subjective',
     objective: lang === 'fr' ? 'Objectif' : 'Objective',
-    assessment: lang === 'fr' ? 'Évaluation' : 'Assessment',
+    assessment: lang === 'fr' ? 'Évaluation / Diagnostics' : 'Assessment / Diagnoses',
+    primary: lang === 'fr' ? 'PRINCIPAL' : 'PRIMARY',
+    secondary: lang === 'fr' ? 'SECONDAIRE' : 'SECONDARY',
     plan: 'Plan',
     signature: lang === 'fr' ? 'Signature du médecin' : "Doctor's signature",
     no: lang === 'fr' ? 'N°' : 'No.',
   }
+
+  const legacyDiagnosis = consultation.diagnosis
+    ? [{ id: 'legacy', diagnosis: consultation.diagnosis, icd10_code: consultation.diagnosis_code, is_primary: true, sequence: 1 }]
+    : []
+  const displayDiagnoses = structuredDiagnoses.length > 0 ? structuredDiagnoses : legacyDiagnosis
 
   return (
     <div>
@@ -92,15 +108,26 @@ export default async function PrintConsultationPage({
 
       {section(L.subjective, consultation.subjective_notes)}
       {section(L.objective, consultation.examination_notes)}
-      {(consultation.diagnosis || consultation.diagnosis_code) && (
+      {displayDiagnoses.length > 0 && (
         <div style={{ marginBottom: '18px' }}>
-          <p style={{ fontSize: '13px', fontWeight: 600, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.03em', color: '#5C6B65' }}>
+          <p style={{ fontSize: '13px', fontWeight: 600, margin: '0 0 7px', textTransform: 'uppercase', letterSpacing: '0.03em', color: '#5C6B65' }}>
             {L.assessment}
           </p>
-          <p style={{ fontSize: '14px', margin: 0 }}>
-            {consultation.diagnosis}
-            {consultation.diagnosis_code ? ` (ICD-10: ${consultation.diagnosis_code})` : ''}
-          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+            {displayDiagnoses.map((diagnosis: any) => (
+              <div key={diagnosis.id} style={{ display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '14px' }}>
+                <span style={{ minWidth: '72px', fontSize: '10px', fontWeight: 600, color: diagnosis.is_primary ? '#2F6F62' : '#5C6B65' }}>
+                  {diagnosis.is_primary ? L.primary : L.secondary}
+                </span>
+                <span>{diagnosis.diagnosis}</span>
+                {diagnosis.icd10_code && (
+                  <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#5C6B65' }}>
+                    {diagnosis.icd10_code}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {section(L.plan, consultation.treatment_plan)}
