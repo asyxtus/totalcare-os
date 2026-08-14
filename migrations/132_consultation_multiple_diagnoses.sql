@@ -1,11 +1,14 @@
 -- Structured diagnoses: one consultation can have one primary diagnosis
 -- and any number of secondary diagnoses. Legacy consultations.diagnosis and
 -- consultations.diagnosis_code are retained for backward compatibility.
--- UI application trigger: 2026-08-14
+--
+-- IMPORTANT: TotalCare OS does not have a public `clinics` table. Clinic IDs
+-- are stored directly on tenant-scoped tables and validated by the existing
+-- current_staff_clinic_id() RLS helper. Do not add a FK to clinics(id).
 
 CREATE TABLE IF NOT EXISTS consultation_diagnoses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  clinic_id uuid NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
+  clinic_id uuid NOT NULL,
   consultation_id uuid NOT NULL REFERENCES consultations(id) ON DELETE CASCADE,
   diagnosis text NOT NULL CHECK (length(trim(diagnosis)) > 0),
   icd10_code text,
