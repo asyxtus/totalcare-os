@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import PatientDiagnosisHistory from '@/components/patients/PatientDiagnosisHistory'
 
 export default async function PatientLayout({
   children,
@@ -32,6 +33,7 @@ export default async function PatientLayout({
         </Link>
       </div>
       {children}
+      <PatientDiagnosisHistory patientId={id} />
     </div>
   )
 }
