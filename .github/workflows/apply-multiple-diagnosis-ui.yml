@@ -1,0 +1,78 @@
+name: Apply multiple diagnosis UI
+
+on:
+  push:
+    paths:
+      - 'migrations/132_consultation_multiple_diagnoses.sql'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update consultation form
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('components/ConsultationForm.tsx')
+          s = p.read_text()
+
+          s = s.replace(
+              "interface Icd10Code { code: string; description_fr: string; category: string }",
+              "interface Icd10Code { code: string; description_fr: string; category: string }\ninterface DiagnosisEntry { diagnosis: string; icd10Code: string; isPrimary: boolean }"
+          )
+
+          s = s.replace(
+              "    diagPh: 'Diagnostic principal…',",
+              "    diagPh: 'Rechercher ou saisir un diagnostic…',\n    primary: 'Diagnostic principal',\n    secondary: 'Diagnostic secondaire',\n    addDiagnosis: '+ Ajouter un diagnostic',\n    removeDiagnosis: 'Supprimer',\n    makePrimary: 'Définir comme principal',\n    noDiagnosis: 'Ajoutez au moins un diagnostic avant de terminer la consultation.',"
+          )
+          s = s.replace(
+              "    diagPh: 'Primary diagnosis…',",
+              "    diagPh: 'Search or enter a diagnosis…',\n    primary: 'Primary diagnosis',\n    secondary: 'Secondary diagnosis',\n    addDiagnosis: '+ Add diagnosis',\n    removeDiagnosis: 'Remove',\n    makePrimary: 'Make primary',\n    noDiagnosis: 'Add at least one diagnosis before completing the consultation.',"
+          )
+
+          s = s.replace(
+              "  const [diagnosis, setDiagnosis] = useState(initialValues.diagnosis)\n  const [diagnosisCode, setDiagnosisCode] = useState(initialValues.diagnosisCode)",
+              "  const [diagnoses, setDiagnoses] = useState<DiagnosisEntry[]>(() => initialValues.diagnosis.trim() ? [{ diagnosis: initialValues.diagnosis, icd10Code: initialValues.diagnosisCode, isPrimary: true }] : [{ diagnosis: '', icd10Code: '', isPrimary: true }])"
+          )
+
+          s = s.replace(
+              "    setDiagnosis(useEn && tpl.assessment_prompt_en ? tpl.assessment_prompt_en : (tpl.assessment_prompt ?? ''))\n    setTreatmentPlan",
+              "    setDiagnoses(rows => {\n      const primary = rows.find(r => r.isPrimary) ?? rows[0]\n      if (!primary) return [{ diagnosis: useEn && tpl.assessment_prompt_en ? tpl.assessment_prompt_en : (tpl.assessment_prompt ?? ''), icd10Code: tpl.suggested_icd10_code ?? '', isPrimary: true }]\n      return rows.map(r => r.isPrimary ? { ...r, diagnosis: useEn && tpl.assessment_prompt_en ? tpl.assessment_prompt_en : (tpl.assessment_prompt ?? ''), icd10Code: tpl.suggested_icd10_code ?? r.icd10Code } : r)\n    })\n    setTreatmentPlan"
+          )
+
+          s = s.replace(
+              "    if (tpl.suggested_icd10_code) setDiagnosisCode(tpl.suggested_icd10_code)\n  }",
+              "  }\n\n  function updateDiagnosis(index: number, patch: Partial<DiagnosisEntry>) {\n    setDiagnoses(rows => rows.map((r, i) => i === index ? { ...r, ...patch } : r))\n  }\n\n  function addDiagnosis() {\n    setDiagnoses(rows => [...rows, { diagnosis: '', icd10Code: '', isPrimary: false }])\n  }\n\n  function removeDiagnosis(index: number) {\n    setDiagnoses(rows => {\n      if (rows.length === 1) return [{ diagnosis: '', icd10Code: '', isPrimary: true }]\n      const wasPrimary = rows[index].isPrimary\n      const next = rows.filter((_, i) => i !== index)\n      if (wasPrimary && next.length > 0) next[0] = { ...next[0], isPrimary: true }\n      return next\n    })\n  }\n\n  function makePrimary(index: number) {\n    setDiagnoses(rows => rows.map((r, i) => ({ ...r, isPrimary: i === index })))\n  }"
+          )
+
+          s = s.replace(
+              "      <input type=\"hidden\" name=\"diagnosis\" value={diagnosis} />\n      <input type=\"hidden\" name=\"diagnosis_code\" value={diagnosisCode} />",
+              "      <input type=\"hidden\" name=\"diagnosis\" value={(diagnoses.find(d => d.isPrimary) ?? diagnoses[0])?.diagnosis ?? ''} />\n      <input type=\"hidden\" name=\"diagnosis_code\" value={(diagnoses.find(d => d.isPrimary) ?? diagnoses[0])?.icd10Code ?? ''} />\n      <input type=\"hidden\" name=\"diagnoses_json\" value={JSON.stringify(diagnoses.filter(d => d.diagnosis.trim()).map((d, i) => ({ ...d, sequence: i + 1 })))} />"
+          )
+
+          old = '''      <p style={{ fontSize: '13px', fontWeight: 500, margin: '0 0 8px' }}>{t.assessment}</p>\n      <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem' }}>\n        <input value={diagnosis} onChange={e => setDiagnosis(e.target.value)}\n          placeholder={t.diagPh} style={{ ...inputStyle, flex: 2 }} />\n        <select value={diagnosisCode} onChange={e => setDiagnosisCode(e.target.value)}\n          style={{ ...inputStyle, flex: 1 }}>\n          <option value="">{t.icd}</option>\n          {Object.entries(icd10ByCategory).map(([category, codes]) => (\n            <optgroup key={category} label={category}>\n              {codes.map(c => (\n                <option key={c.code} value={c.code}>{c.code} — {c.description_fr}</option>\n              ))}\n            </optgroup>\n          ))}\n        </select>\n      </div>'''
+
+          new = '''      <p style={{ fontSize: '13px', fontWeight: 500, margin: '0 0 8px' }}>{t.assessment}</p>\n      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '1rem' }}>\n        {diagnoses.map((row, i) => (\n          <div key={i} style={{ border: row.isPrimary ? '1px solid var(--color-accent)' : '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', padding: '10px' }}>\n            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '7px' }}>\n              <span style={{ fontSize: '11px', fontWeight: 600, color: row.isPrimary ? 'var(--color-accent)' : 'var(--color-text-secondary)', textTransform: 'uppercase' }}>\n                {row.isPrimary ? t.primary : t.secondary}\n              </span>\n              <div style={{ display: 'flex', gap: '6px' }}>\n                {!row.isPrimary && (\n                  <button type=\"button\" onClick={() => makePrimary(i)} style={{ border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-accent)', borderRadius: 'var(--radius-sm)', padding: '3px 7px', fontSize: '10px', cursor: 'pointer' }}>{t.makePrimary}</button>\n                )}\n                {diagnoses.length > 1 && (\n                  <button type=\"button\" onClick={() => removeDiagnosis(i)} style={{ border: 'none', background: 'transparent', color: 'var(--color-critical-text)', fontSize: '11px', cursor: 'pointer' }}>{t.removeDiagnosis}</button>\n                )}\n              </div>\n            </div>\n            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>\n              <input value={row.diagnosis} onChange={e => updateDiagnosis(i, { diagnosis: e.target.value })} placeholder={t.diagPh} style={{ ...inputStyle, flex: '2 1 280px' }} />\n              <select value={row.icd10Code} onChange={e => updateDiagnosis(i, { icd10Code: e.target.value })} style={{ ...inputStyle, flex: '1 1 220px' }}>\n                <option value=\"\">{t.icd}</option>\n                {Object.entries(icd10ByCategory).map(([category, codes]) => (\n                  <optgroup key={category} label={category}>\n                    {codes.map(c => <option key={c.code} value={c.code}>{c.code} — {c.description_fr}</option>)}\n                  </optgroup>\n                ))}\n              </select>\n            </div>\n          </div>\n        ))}\n        <button type=\"button\" onClick={addDiagnosis} style={{ background: 'none', border: '1px dashed var(--color-border)', color: 'var(--color-accent)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', fontSize: '12px', cursor: 'pointer' }}>{t.addDiagnosis}</button>\n      </div>'''
+
+          if old not in s:
+              raise SystemExit('Expected diagnosis UI block was not found; aborting without committing.')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s)
+
+      - name: Validate and commit
+        shell: bash
+        run: |
+          grep -q "diagnoses_json" components/ConsultationForm.tsx
+          grep -q "consultation_diagnoses" lib/actions/consultation.ts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/apply-multiple-diagnosis-ui.yml
+          git add components/ConsultationForm.tsx .github/workflows/apply-multiple-diagnosis-ui.yml
+          git commit -m "Add multiple diagnosis UI to consultations"
+          git push
