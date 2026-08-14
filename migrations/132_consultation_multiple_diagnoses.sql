@@ -1,6 +1,7 @@
 -- Structured diagnoses: one consultation can have one primary diagnosis
 -- and any number of secondary diagnoses. Legacy consultations.diagnosis and
 -- consultations.diagnosis_code are retained for backward compatibility.
+-- UI application trigger: 2026-08-14
 
 CREATE TABLE IF NOT EXISTS consultation_diagnoses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
