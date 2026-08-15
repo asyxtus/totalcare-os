@@ -2,7 +2,7 @@
 
 // components/SupplierForm.tsx
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useLang } from '@/lib/i18n/LangContext'
 import { createSupplier } from '@/lib/actions/pharmacy'
 
@@ -11,6 +11,7 @@ export default function SupplierForm() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const submitLockRef = useRef(false)
 
   const inputStyle: React.CSSProperties = {
     padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
@@ -18,20 +19,26 @@ export default function SupplierForm() {
   }
 
   async function handleSubmit(formData: FormData) {
+    if (submitLockRef.current) return
+    submitLockRef.current = true
     setError(null)
     setSubmitting(true)
-    const result = await createSupplier(formData)
-    if (result && 'error' in result && result.error) {
-      setError(result.error)
-    } else {
-      setSuccess(true)
-      setTimeout(() => setSuccess(false), 2000)
+    try {
+      const result = await createSupplier(formData)
+      if (result && 'error' in result && result.error) {
+        setError(result.error)
+      } else {
+        setSuccess(true)
+        setTimeout(() => setSuccess(false), 2000)
+      }
+    } finally {
+      setSubmitting(false)
+      submitLockRef.current = false
     }
-    setSubmitting(false)
   }
 
   return (
-    <form action={handleSubmit} style={{
+    <form action={handleSubmit} aria-busy={submitting} style={{
       background: 'var(--color-surface)', border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-md)', padding: '1rem',
     }}>
@@ -47,7 +54,7 @@ export default function SupplierForm() {
         <input name="payment_terms_days" type="number" placeholder={lang==="fr"?"Délai de paiement (jours, 0 = comptant)":"Payment terms (days, 0 = cash)"} style={{ ...inputStyle, flex: 1 }} />
         <button type="submit" disabled={submitting} style={{
           fontSize: '13px', padding: '8px 16px', borderRadius: 'var(--radius-sm)', border: 'none',
-          background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', cursor: 'pointer', whiteSpace: 'nowrap',
+          background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', cursor: submitting ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
         }}>
           {submitting ? '…' : 'Ajouter'}
         </button>
