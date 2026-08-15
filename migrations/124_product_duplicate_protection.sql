@@ -10,8 +10,9 @@
 -- the canonical product. Nothing is deleted or reassigned by this migration.
 --
 -- Product identity for duplicate protection:
---   clinic + name + generic name + dosage form + unit
--- All comparisons are trimmed and case-insensitive.
+--   clinic + product name + dosage form + unit
+-- All comparisons are trimmed and case-insensitive. Generic name is
+-- descriptive metadata, not a reason to create a second catalog product.
 -- ============================================================================
 
 -- First deactivate duplicate ACTIVE products, preserving the product with
@@ -22,7 +23,6 @@ WITH product_history AS (
     p.clinic_id,
     p.created_at,
     lower(trim(p.name)) AS identity_name,
-    lower(trim(coalesce(p.generic_name, ''))) AS identity_generic,
     lower(trim(coalesce(
       p.dosage_form,
       nullif(concat_ws(' ', nullif(trim(p.strength), ''), nullif(trim(p.form), '')), ''),
@@ -43,13 +43,11 @@ WITH product_history AS (
   SELECT
     *,
     row_number() OVER (
-      PARTITION BY clinic_id, identity_name, identity_generic,
-                   identity_dosage_form, identity_unit
+      PARTITION BY clinic_id, identity_name, identity_dosage_form, identity_unit
       ORDER BY history_count DESC, created_at ASC, id ASC
     ) AS rn,
     count(*) OVER (
-      PARTITION BY clinic_id, identity_name, identity_generic,
-                   identity_dosage_form, identity_unit
+      PARTITION BY clinic_id, identity_name, identity_dosage_form, identity_unit
     ) AS duplicate_count
   FROM product_history
 )
@@ -66,7 +64,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_products_active_identity_per_clinic
 ON public.products (
   clinic_id,
   lower(trim(name)),
-  lower(trim(coalesce(generic_name, ''))),
   lower(trim(coalesce(
     dosage_form,
     nullif(concat_ws(' ', nullif(trim(strength), ''), nullif(trim(form), '')), ''),
