@@ -9,7 +9,7 @@
 // can accept. Fires one collectPayment call per invoice touched, plus one
 // collectChargesDirectly call for any uninvoiced remainder.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { collectPayment, collectChargesDirectly } from '@/lib/actions/billing'
 import { useLang } from '@/lib/i18n/LangContext'
@@ -37,6 +37,7 @@ export default function CashierCollectForm({
   const [amount, setAmount] = useState(String(balanceXaf))
   const [method, setMethod] = useState('cash')
   const [reference, setReference] = useState('')
+  const submitLock = useRef(false)
 
   const inputStyle: React.CSSProperties = {
     padding: '8px 12px', border: '1px solid var(--color-border)',
@@ -46,68 +47,77 @@ export default function CashierCollectForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (submitLock.current) return
+    submitLock.current = true
+
     let remaining = parseFloat(amount)
     if (!remaining || remaining <= 0) {
       setError(lang === 'fr' ? 'Montant invalide.' : 'Invalid amount.')
+      submitLock.current = false
       return
     }
     setError(null)
     setSubmitting(true)
 
-    // Group charges by invoice_id (null = uninvoiced), oldest-first order
-    // preserved from the server (charges array is already sorted by
-    // created_at asc). Distribute the entered amount across groups in
-    // order, capping each group at its own total balance.
-    const byInvoice = new Map<string | null, ChargeRow[]>()
-    for (const c of charges) {
-      const key = c.invoice_id
-      const list = byInvoice.get(key) ?? []
-      list.push(c)
-      byInvoice.set(key, list)
-    }
-
-    let firstPaymentId: string | null = null
-    let lastError: string | null = null
-
-    for (const [invoiceId, group] of byInvoice) {
-      if (remaining <= 0) break
-      const groupBalance = group.reduce((s, c) => s + c.balance, 0)
-      if (groupBalance <= 0) continue
-      const chunk = Math.min(remaining, groupBalance)
-      remaining -= chunk
-
-      const formData = new FormData()
-      formData.set('amount_xaf', String(chunk))
-      formData.set('payment_method', method)
-      if (reference) formData.set('reference', reference)
-
-      let result: any
-      if (invoiceId) {
-        result = await collectPayment(invoiceId, formData)
-      } else {
-        result = await collectChargesDirectly(group.map(c => c.id), formData, patientId)
+    try {
+      // Group charges by invoice_id (null = uninvoiced), oldest-first order
+      // preserved from the server (charges array is already sorted by
+      // created_at asc). Distribute the entered amount across groups in
+      // order, capping each group at its own total balance.
+      const byInvoice = new Map<string | null, ChargeRow[]>()
+      for (const c of charges) {
+        const key = c.invoice_id
+        const list = byInvoice.get(key) ?? []
+        list.push(c)
+        byInvoice.set(key, list)
       }
 
-      if (result && 'error' in result && result.error) {
-        lastError = result.error
-        break
-      }
-      if (!firstPaymentId && result?.paymentId) firstPaymentId = result.paymentId
-    }
+      let firstPaymentId: string | null = null
+      let lastError: string | null = null
 
-    if (lastError) {
-      setError(lastError)
+      for (const [invoiceId, group] of byInvoice) {
+        if (remaining <= 0) break
+        const groupBalance = group.reduce((s, c) => s + c.balance, 0)
+        if (groupBalance <= 0) continue
+        const chunk = Math.min(remaining, groupBalance)
+        remaining -= chunk
+
+        const formData = new FormData()
+        formData.set('amount_xaf', String(chunk))
+        formData.set('payment_method', method)
+        if (reference) formData.set('reference', reference)
+
+        let result: any
+        if (invoiceId) {
+          result = await collectPayment(invoiceId, formData)
+        } else {
+          result = await collectChargesDirectly(group.map(c => c.id), formData, patientId)
+        }
+
+        if (result && 'error' in result && result.error) {
+          lastError = result.error
+          break
+        }
+        if (!firstPaymentId && result?.paymentId) firstPaymentId = result.paymentId
+      }
+
+      if (lastError) {
+        setError(lastError)
+        return
+      }
+
+      if (firstPaymentId) {
+        window.open(`/print/payments/${firstPaymentId}`, '_blank')
+      }
+
+      setOpen(false)
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : (lang === 'fr' ? 'Échec du paiement.' : 'Payment failed.'))
+    } finally {
+      submitLock.current = false
       setSubmitting(false)
-      return
     }
-
-    if (firstPaymentId) {
-      window.open(`/print/payments/${firstPaymentId}`, '_blank')
-    }
-
-    setOpen(false)
-    setSubmitting(false)
-    router.refresh()
   }
 
   if (!open) {
@@ -128,7 +138,7 @@ export default function CashierCollectForm({
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
       padding: '16px',
-    }} onClick={e => { if (e.target === e.currentTarget) setOpen(false) }}>
+    }} onClick={e => { if (e.target === e.currentTarget && !submitting) setOpen(false) }}>
       <div role="dialog" aria-modal="true" style={{
         background: 'var(--color-surface)', borderRadius: 'var(--radius-md)',
         padding: '24px', width: '360px', maxWidth: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
@@ -137,9 +147,9 @@ export default function CashierCollectForm({
           <p style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>
             {lang === 'fr' ? 'Encaisser le paiement' : 'Collect payment'}
           </p>
-          <button onClick={() => setOpen(false)} style={{
+          <button onClick={() => setOpen(false)} disabled={submitting} style={{
             background: 'none', border: 'none', fontSize: '20px',
-            cursor: 'pointer', color: 'var(--color-text-secondary)', lineHeight: 1, padding: '0 4px',
+            cursor: submitting ? 'not-allowed' : 'pointer', color: 'var(--color-text-secondary)', lineHeight: 1, padding: '0 4px',
           }}>×</button>
         </div>
 
@@ -161,14 +171,14 @@ export default function CashierCollectForm({
               {lang === 'fr' ? 'Montant encaissé (FCFA)' : 'Amount collected (FCFA)'}
             </label>
             <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
-              required min="1" max={balanceXaf} autoFocus style={{ ...inputStyle, width: '100%' }} />
+              required min="1" max={balanceXaf} autoFocus disabled={submitting} style={{ ...inputStyle, width: '100%' }} />
           </div>
 
           <div>
             <label style={{ fontSize: '11px', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '4px' }}>
               {lang === 'fr' ? 'Mode de paiement' : 'Payment method'}
             </label>
-            <select value={method} onChange={e => setMethod(e.target.value)} style={{ ...inputStyle, width: '100%' }}>
+            <select value={method} onChange={e => setMethod(e.target.value)} disabled={submitting} style={{ ...inputStyle, width: '100%' }}>
               <option value="cash">{lang === 'fr' ? 'Espèces' : 'Cash'}</option>
               <option value="momo">MTN MoMo</option>
               <option value="orange_money">Orange Money</option>
@@ -184,7 +194,7 @@ export default function CashierCollectForm({
               </label>
               <input type="text" value={reference} onChange={e => setReference(e.target.value)}
                 placeholder={lang === 'fr' ? 'ex. ID MoMo' : 'e.g. MoMo ID'}
-                style={{ ...inputStyle, width: '100%' }} />
+                disabled={submitting} style={{ ...inputStyle, width: '100%' }} />
             </div>
           )}
 
@@ -199,10 +209,10 @@ export default function CashierCollectForm({
             }}>
               {submitting ? '…' : (lang === 'fr' ? '✓ Encaisser' : '✓ Collect')}
             </button>
-            <button type="button" onClick={() => setOpen(false)} style={{
+            <button type="button" onClick={() => setOpen(false)} disabled={submitting} style={{
               padding: '11px 16px', borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--color-border)', background: 'none',
-              color: 'var(--color-text-secondary)', cursor: 'pointer',
+              color: 'var(--color-text-secondary)', cursor: submitting ? 'not-allowed' : 'pointer',
             }}>
               {lang === 'fr' ? 'Annuler' : 'Cancel'}
             </button>
