@@ -2,7 +2,7 @@
 
 // components/PurchaseOrderForm.tsx
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createPurchaseOrder } from '@/lib/actions/procurement'
 import { useLang } from '@/lib/i18n/LangContext'
 
@@ -18,6 +18,7 @@ export default function PurchaseOrderForm({ suppliers, products }: { suppliers: 
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const submitLockRef = useRef(false)
 
   const inputStyle: React.CSSProperties = {
     padding: '7px 8px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
@@ -29,21 +30,27 @@ export default function PurchaseOrderForm({ suppliers, products }: { suppliers: 
   }
 
   async function handleSubmit(formData: FormData) {
+    if (submitLockRef.current) return
+    submitLockRef.current = true
     setError(null)
     setSubmitting(true)
-    const result = await createPurchaseOrder(formData)
-    if (result && 'error' in result && result.error) {
-      setError(result.error)
-    } else {
-      setSuccess(true)
-      setRows([emptyRow()])
-      setTimeout(() => setSuccess(false), 2500)
+    try {
+      const result = await createPurchaseOrder(formData)
+      if (result && 'error' in result && result.error) {
+        setError(result.error)
+      } else {
+        setSuccess(true)
+        setRows([emptyRow()])
+        setTimeout(() => setSuccess(false), 2500)
+      }
+    } finally {
+      setSubmitting(false)
+      submitLockRef.current = false
     }
-    setSubmitting(false)
   }
 
   return (
-    <form action={handleSubmit} style={{
+    <form action={handleSubmit} aria-busy={submitting} style={{
       background: 'var(--color-surface)', border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-md)', padding: '1rem',
     }}>
@@ -80,7 +87,7 @@ export default function PurchaseOrderForm({ suppliers, products }: { suppliers: 
 
       <button type="submit" disabled={submitting} style={{
         fontSize: '13px', padding: '9px 16px', borderRadius: 'var(--radius-sm)', border: 'none',
-        background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', cursor: 'pointer',
+        background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', cursor: submitting ? 'not-allowed' : 'pointer',
       }}>
         {submitting ? '…' : lang==='fr'?'Créer le bon de commande':'Create purchase order'}
       </button>
