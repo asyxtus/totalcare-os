@@ -2,7 +2,7 @@
 
 // components/SupplierInvoiceForm.tsx
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { recordSupplierInvoice } from '@/lib/actions/procurement'
 import { useLang } from '@/lib/i18n/LangContext'
 
@@ -13,6 +13,7 @@ export default function SupplierInvoiceForm({ suppliers }: { suppliers: Supplier
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const submitLockRef = useRef(false)
 
   const inputStyle: React.CSSProperties = {
     padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
@@ -20,19 +21,25 @@ export default function SupplierInvoiceForm({ suppliers }: { suppliers: Supplier
   }
 
   async function handleSubmit(formData: FormData) {
+    if (submitLockRef.current) return
+    submitLockRef.current = true
     setError(null)
     setSubmitting(true)
-    const result = await recordSupplierInvoice(formData)
-    if (result && 'error' in result && result.error) setError(result.error)
-    else {
-      setSuccess(true)
-      setTimeout(() => setSuccess(false), 2500)
+    try {
+      const result = await recordSupplierInvoice(formData)
+      if (result && 'error' in result && result.error) setError(result.error)
+      else {
+        setSuccess(true)
+        setTimeout(() => setSuccess(false), 2500)
+      }
+    } finally {
+      setSubmitting(false)
+      submitLockRef.current = false
     }
-    setSubmitting(false)
   }
 
   return (
-    <form action={handleSubmit} style={{
+    <form action={handleSubmit} aria-busy={submitting} style={{
       background: 'var(--color-surface)', border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1.5rem',
     }}>
@@ -50,7 +57,7 @@ export default function SupplierInvoiceForm({ suppliers }: { suppliers: Supplier
       {success && <p style={{ fontSize: '12px', color: 'var(--color-success-text)', marginBottom: '8px' }}>✓ {lang==='fr'?'Facture enregistrée':'Invoice recorded'}</p>}
       <button type="submit" disabled={submitting} style={{
         fontSize: '13px', padding: '8px 16px', borderRadius: 'var(--radius-sm)', border: 'none',
-        background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', cursor: 'pointer',
+        background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', cursor: submitting ? 'not-allowed' : 'pointer',
       }}>
         {submitting ? '…' : (lang==='fr'?'Enregistrer la facture':'Save invoice')}
       </button>
