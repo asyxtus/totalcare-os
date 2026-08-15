@@ -32,6 +32,7 @@ export default function POSTerminal({ products }: { products: Product[] }) {
   const [success, setSuccess] = useState<{ total: number; saleId: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const checkoutLockRef = useRef(false)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -90,22 +91,29 @@ export default function POSTerminal({ products }: { products: Product[] }) {
   const total = cart.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0)
 
   async function handleCheckout() {
-    if (cart.length === 0) return
+    if (cart.length === 0 || checkoutLockRef.current) return
+    checkoutLockRef.current = true
     setSubmitting(true)
     setError(null)
 
-    const formData = new FormData()
-    formData.set('payment_method', paymentMethod)
-    formData.set('cart', JSON.stringify(cart.map((l) => ({ product_id: l.productId, quantity: l.quantity }))))
+    try {
+      const formData = new FormData()
+      formData.set('payment_method', paymentMethod)
+      formData.set('cart', JSON.stringify(cart.map((l) => ({ product_id: l.productId, quantity: l.quantity }))))
 
-    const result = await checkoutPosSale(formData)
-    if (result && 'error' in result && result.error) {
-      setError(result.error)
+      const result = await checkoutPosSale(formData)
+      if (result && 'error' in result && result.error) {
+        setError(result.error)
+      } else {
+        setSuccess({ total, saleId: 'saleId' in result ? result.saleId : '' })
+        setCart([])
+      }
+    } catch (err) {
+      console.error('POS checkout failed:', err)
+      setError(lang === 'fr' ? 'Impossible de finaliser la vente.' : 'Unable to complete the sale.')
+    } finally {
       setSubmitting(false)
-    } else {
-      setSuccess({ total, saleId: 'saleId' in result ? result.saleId : '' })
-      setCart([])
-      setSubmitting(false)
+      checkoutLockRef.current = false
     }
   }
 
