@@ -1,13 +1,13 @@
 -- ============================================================================
 -- INVENTORY DUPLICATE CLEANUP
 --
--- Removes only product rows that have NO downstream inventory/transaction
--- history and are duplicates of another product in the same clinic.
--- Products with batches, stock movements, dispensing, prescriptions,
--- POS sales, purchase orders, or goods receipts are NEVER deleted here.
+-- IMPORTANT: normalized_name / normalized_generic / normalized_dosage_form /
+-- normalized_unit are NOT physical columns on public.products. They were
+-- derived in an earlier diagnostic query. This migration therefore compares
+-- the real products columns directly using normalized expressions.
 --
--- IMPORTANT: This migration is intentionally conservative. It deactivates
--- orphan duplicates rather than hard-deleting them, preserving auditability.
+-- This migration is deliberately conservative: it DEACTIVATES orphan
+-- duplicates. It does not hard-delete products or historical records.
 -- ============================================================================
 
 create or replace function cleanup_orphan_duplicate_products(p_clinic_id uuid)
@@ -31,26 +31,43 @@ begin
         where k.clinic_id = p.clinic_id
           and k.id <> p.id
           and k.is_active = true
-          and k.normalized_name = p.normalized_name
-          and coalesce(k.normalized_generic, '') = coalesce(p.normalized_generic, '')
-          and coalesce(k.normalized_dosage_form, '') = coalesce(p.normalized_dosage_form, '')
-          and coalesce(k.normalized_unit, '') = coalesce(p.normalized_unit, '')
-          and not exists (select 1 from batches b where b.product_id = k.id)
-          is false
-        order by k.created_at asc nulls last, k.id
+          and lower(trim(k.name)) = lower(trim(p.name))
+          and lower(trim(coalesce(k.generic_name, ''))) = lower(trim(coalesce(p.generic_name, '')))
+          and lower(trim(coalesce(k.dosage_form, ''))) = lower(trim(coalesce(p.dosage_form, '')))
+          and lower(trim(coalesce(k.unit, ''))) = lower(trim(coalesce(p.unit, '')))
+        order by
+          (
+            exists (select 1 from batches hb where hb.product_id = k.id)
+            or exists (select 1 from dispensing_records hdr where hdr.product_id = k.id)
+            or exists (select 1 from prescription_items hpi where hpi.product_id = k.id)
+            or exists (select 1 from pos_sale_items hpsi where hpsi.product_id = k.id)
+            or exists (select 1 from purchase_order_items hpoi where hpoi.product_id = k.id)
+            or exists (select 1 from goods_receipt_items hgri where hgri.product_id = k.id)
+          ) desc,
+          k.id
         limit 1
       ) as kept_id
     from products p
     where p.clinic_id = p_clinic_id
       and p.is_active = true
-      and p.normalized_name is not null
+      -- Only products with ZERO downstream history are eligible for cleanup.
       and not exists (select 1 from batches b where b.product_id = p.id)
-      and not exists (select 1 from stock_movements sm where sm.batch_id in (select b.id from batches b where b.product_id = p.id))
       and not exists (select 1 from dispensing_records dr where dr.product_id = p.id)
       and not exists (select 1 from prescription_items pi where pi.product_id = p.id)
       and not exists (select 1 from pos_sale_items psi where psi.product_id = p.id)
       and not exists (select 1 from purchase_order_items poi where poi.product_id = p.id)
       and not exists (select 1 from goods_receipt_items gri where gri.product_id = p.id)
+      and exists (
+        select 1
+        from products d
+        where d.clinic_id = p.clinic_id
+          and d.id <> p.id
+          and d.is_active = true
+          and lower(trim(d.name)) = lower(trim(p.name))
+          and lower(trim(coalesce(d.generic_name, ''))) = lower(trim(coalesce(p.generic_name, '')))
+          and lower(trim(coalesce(d.dosage_form, ''))) = lower(trim(coalesce(p.dosage_form, '')))
+          and lower(trim(coalesce(d.unit, ''))) = lower(trim(coalesce(p.unit, '')))
+      )
   ),
   valid as (
     select * from candidates where kept_id is not null
@@ -62,26 +79,17 @@ begin
     where p.id = v.duplicate_id
     returning p.id, v.kept_id
   )
-  select u.id, u.kept_id, 'DEACTIVATED_ORPHAN_DUPLICATE'::text
+  select
+    u.id,
+    u.kept_id,
+    'DEACTIVATED_ORPHAN_DUPLICATE'::text
   from updated u;
 end;
 $$;
 
 comment on function cleanup_orphan_duplicate_products(uuid) is
-'Conservatively deactivates active product duplicates with zero downstream inventory/transaction history. Does not delete historical products.';
+'Conservatively deactivates active product duplicates with zero downstream inventory/transaction history. Compares real products columns rather than diagnostic normalized aliases. Does not delete historical products.';
 
--- Prevent future exact duplicates at the database level where the normalized
--- medication identity is complete. Existing historical duplicates are left
--- untouched.
-create unique index if not exists uq_products_clinic_medication_identity
-on products (
-  clinic_id,
-  normalized_name,
-  normalized_generic,
-  normalized_dosage_form,
-  normalized_unit
-)
-where is_active = true
-  and normalized_name is not null
-  and normalized_dosage_form is not null
-  and normalized_unit is not null;
+-- DO NOT create a unique index yet. Existing duplicate active products must
+-- first be cleaned up. A separate follow-up migration should add the unique
+-- constraint after the cleanup has been verified in production.
