@@ -2,7 +2,7 @@
 
 // components/OpenShiftForm.tsx
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { openShift } from '@/lib/actions/billing'
 
@@ -11,18 +11,24 @@ export default function OpenShiftForm() {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const submitLock = useRef(false)
 
   async function handleSubmit(formData: FormData) {
+    if (submitLock.current) return
+    submitLock.current = true
     setError(null)
     setSubmitting(true)
-    const result = await openShift(formData)
-    if (result && 'error' in result && result.error) {
-      setError(result.error)
+    try {
+      const result = await openShift(formData)
+      if (result && 'error' in result && result.error) {
+        setError(result.error)
+      } else {
+        setOpen(false)
+        router.refresh()
+      }
+    } finally {
+      submitLock.current = false
       setSubmitting(false)
-    } else {
-      setOpen(false)
-      setSubmitting(false)
-      router.refresh()
     }
   }
 
@@ -43,6 +49,7 @@ export default function OpenShiftForm() {
       <div>
         <input
           name="opening_cash_xaf" type="number" step="any" placeholder="Fonds de caisse initial (FCFA)" required
+          disabled={submitting}
           style={{ padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: '13px', background: 'var(--color-surface)', color: 'var(--color-text-primary)' }}
         />
         {error && <p style={{ fontSize: '11px', color: 'var(--color-critical-text)', margin: '4px 0 0' }}>{error}</p>}
