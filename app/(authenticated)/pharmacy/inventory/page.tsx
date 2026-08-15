@@ -21,13 +21,16 @@ export default async function InventoryPage() {
 
   const { data: products, error: productsError } = await supabase.rpc('get_products_with_stock', { p_clinic_id: staff.clinicId })
   if (productsError) rpcErrors.push(`get_products_with_stock: ${productsError.message}`)
+
+  // Inactive products are archived records and must not appear in the normal
+  // inventory catalogue. Keep them available in the database for audit/history.
   const activeProducts = (products ?? []).filter((p: any) => p.is_active)
   const categories = [...new Set(activeProducts.map((p: any) => p.drug_class_name).filter(Boolean))] as string[]
 
-  // For duplicate detection in the catalog browser: a set of "name|dosage_form"
-  // so we can mark templates already in this clinic's catalog as "already added"
+  // Only active products should prevent a catalogue template from being added.
+  // An inactive duplicate is archived and should not block a valid replacement.
   const existingProductNames = new Set<string>(
-    (products ?? []).map((p: any) => `${p.name}|${p.dosage_form ?? ''}`)
+    activeProducts.map((p: any) => `${p.name}|${p.dosage_form ?? ''}`)
   )
 
   return (
@@ -66,7 +69,7 @@ export default async function InventoryPage() {
         existingProductNames={existingProductNames}
       />
 
-      <InventoryTable products={products ?? []} categories={categories} drugClasses={drugClasses ?? []} />
+      <InventoryTable products={activeProducts} categories={categories} drugClasses={drugClasses ?? []} />
     </div>
   )
 }
