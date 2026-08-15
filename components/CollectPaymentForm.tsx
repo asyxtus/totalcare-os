@@ -2,7 +2,7 @@
 
 // components/CollectPaymentForm.tsx
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { collectPayment, collectChargesDirectly } from '@/lib/actions/billing'
 import { useLang } from '@/lib/i18n/LangContext'
@@ -23,6 +23,7 @@ export default function CollectPaymentForm({
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const submitLockRef = useRef(false)
 
   const defaultAmount = balance ?? totalOwed ?? 0
 
@@ -32,33 +33,42 @@ export default function CollectPaymentForm({
   }
 
   async function handleSubmit(formData: FormData) {
+    if (submitLockRef.current) return
+    submitLockRef.current = true
     setError(null)
     setSubmitting(true)
-    let result
-    if (invoiceId) {
-      result = await collectPayment(invoiceId, formData)
-    } else if (chargeIds && chargeIds.length > 0) {
-      result = await collectChargesDirectly(chargeIds, formData)
-    } else {
-      setError('No invoice or charges to collect.')
-      setSubmitting(false)
-      return
-    }
-    if (result && 'error' in result && result.error) {
-      setError(result.error)
-      setSubmitting(false)
-    } else {
-      // Open the printable receipt in a new tab
-      if ('paymentId' in result && result.paymentId) {
-        window.open(`/print/payments/${result.paymentId}`, '_blank')
+
+    try {
+      let result
+      if (invoiceId) {
+        result = await collectPayment(invoiceId, formData)
+      } else if (chargeIds && chargeIds.length > 0) {
+        result = await collectChargesDirectly(chargeIds, formData)
+      } else {
+        setError('No invoice or charges to collect.')
+        return
       }
-      router.refresh()
-      onSuccess?.()
+      if (result && 'error' in result && result.error) {
+        setError(result.error)
+      } else {
+        // Open the printable receipt in a new tab
+        if ('paymentId' in result && result.paymentId) {
+          window.open(`/print/payments/${result.paymentId}`, '_blank')
+        }
+        router.refresh()
+        onSuccess?.()
+      }
+    } catch (err) {
+      console.error('Payment submission failed:', err)
+      setError(lang === 'fr' ? 'Impossible d’enregistrer le paiement.' : 'Unable to record the payment.')
+    } finally {
+      setSubmitting(false)
+      submitLockRef.current = false
     }
   }
 
   return (
-    <form action={handleSubmit} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+    <form action={handleSubmit} aria-busy={submitting} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
       <input name="amount_xaf" type="number" step="any" defaultValue={defaultAmount || undefined}
         placeholder={lang === 'fr' ? 'Montant' : 'Amount'} required style={{ ...inputStyle, width: '110px' }} />
       <select name="payment_method" style={inputStyle}>
@@ -70,7 +80,7 @@ export default function CollectPaymentForm({
         style={{ ...inputStyle, width: '160px' }} />
       <button type="submit" disabled={submitting} style={{
         fontSize: '12px', padding: '7px 14px', borderRadius: 'var(--radius-sm)', border: 'none',
-        background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', cursor: 'pointer',
+        background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', cursor: submitting ? 'not-allowed' : 'pointer',
       }}>
         {submitting ? '…' : (lang === 'fr' ? 'Encaisser' : 'Collect')}
       </button>

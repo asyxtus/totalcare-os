@@ -2,7 +2,7 @@
 
 // components/DepositForm.tsx
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { recordDepositAction } from '@/lib/actions/deposits'
 import { useLang } from '@/lib/i18n/LangContext'
 
@@ -12,6 +12,7 @@ export default function DepositForm({
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const submitLock = useRef(false)
 
   const inputStyle: React.CSSProperties = {
     padding: '7px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
@@ -19,16 +20,21 @@ export default function DepositForm({
   }
 
   async function handleSubmit(formData: FormData) {
+    if (submitLock.current) return
+    submitLock.current = true
     setError(null)
     setSubmitting(true)
-    const result = await recordDepositAction(patientId, formData)
-    if (result && 'error' in result && result.error) {
-      setError(result.error)
+    try {
+      const result = await recordDepositAction(patientId, formData)
+      if (result && 'error' in result && result.error) {
+        setError(result.error)
+      } else {
+        setOpen(false)
+        onSuccess()
+      }
+    } finally {
+      submitLock.current = false
       setSubmitting(false)
-    } else {
-      setSubmitting(false)
-      setOpen(false)
-      onSuccess()
     }
   }
 
@@ -61,9 +67,9 @@ export default function DepositForm({
       }}>
         {submitting ? '…' : (lang === 'fr' ? 'Confirmer' : 'Confirm')}
       </button>
-      <button type="button" onClick={() => setOpen(false)} style={{
+      <button type="button" onClick={() => setOpen(false)} disabled={submitting} style={{
         fontSize: '12px', padding: '7px 10px', borderRadius: 'var(--radius-sm)', border: 'none',
-        background: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer',
+        background: 'none', color: 'var(--color-text-secondary)', cursor: submitting ? 'not-allowed' : 'pointer',
       }}>
         {lang === 'fr' ? 'Annuler' : 'Cancel'}
       </button>

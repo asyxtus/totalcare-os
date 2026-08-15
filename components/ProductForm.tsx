@@ -14,6 +14,10 @@ export default function ProductForm({ drugClasses }: { drugClasses: DrugClass[] 
   const [success, setSuccess] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+  // A disabled button is useful UX, but React state alone is not a sufficient
+  // submission lock: two very fast clicks can both enter the action before
+  // the next render. Keep a synchronous ref lock as the first line of defence.
+  const submitLockRef = useRef(false)
 
   const inputStyle: React.CSSProperties = {
     padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
@@ -21,21 +25,31 @@ export default function ProductForm({ drugClasses }: { drugClasses: DrugClass[] 
   }
 
   async function handleSubmit(formData: FormData) {
+    if (submitLockRef.current) return
+    submitLockRef.current = true
     setError(null)
     setSubmitting(true)
-    const result = await createProduct(formData)
-    if (result && 'error' in result && result.error) {
-      setError(result.error)
-    } else {
-      setSuccess(true)
-      formRef.current?.reset()
-      setTimeout(() => setSuccess(false), 4000)
+
+    try {
+      const result = await createProduct(formData)
+      if (result && 'error' in result && result.error) {
+        setError(result.error)
+      } else {
+        setSuccess(true)
+        formRef.current?.reset()
+        setTimeout(() => setSuccess(false), 4000)
+      }
+    } catch (err) {
+      console.error('Product form submission failed:', err)
+      setError(lang === 'fr' ? 'Impossible d’enregistrer le produit.' : 'Unable to save the product.')
+    } finally {
+      setSubmitting(false)
+      submitLockRef.current = false
     }
-    setSubmitting(false)
   }
 
   return (
-    <form ref={formRef} action={handleSubmit} style={{
+    <form ref={formRef} action={handleSubmit} aria-busy={submitting} style={{
       background: 'var(--color-surface)', border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1.5rem',
     }}>
