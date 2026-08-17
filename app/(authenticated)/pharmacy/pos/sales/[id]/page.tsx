@@ -35,7 +35,6 @@ export default async function PosSaleDetailPage({
     .from('pos_sale_items')
     .select('product_id, quantity, unit_price_xaf, subtotal_xaf, products(name, sku)')
     .eq('pos_sale_id', id)
-    .order('created_at', { ascending: true })
 
   const { data: movements } = await supabase
     .from('stock_movements')
