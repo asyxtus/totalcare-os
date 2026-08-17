@@ -3,7 +3,7 @@
 // components/POSTerminal.tsx
 
 import { useState, useRef, useEffect } from 'react'
-import { checkoutPosSale } from '@/lib/actions/pharmacy'
+import { checkoutPosSaleDetailed } from '@/lib/actions/pos'
 import { useLang } from '@/lib/i18n/LangContext'
 
 interface Product {
@@ -101,7 +101,7 @@ export default function POSTerminal({ products }: { products: Product[] }) {
       formData.set('payment_method', paymentMethod)
       formData.set('cart', JSON.stringify(cart.map((l) => ({ product_id: l.productId, quantity: l.quantity }))))
 
-      const result = await checkoutPosSale(formData)
+      const result = await checkoutPosSaleDetailed(formData)
       if (result && 'error' in result && result.error) {
         setError(result.error)
       } else {
@@ -110,7 +110,8 @@ export default function POSTerminal({ products }: { products: Product[] }) {
       }
     } catch (err) {
       console.error('POS checkout failed:', err)
-      setError(lang === 'fr' ? 'Impossible de finaliser la vente.' : 'Unable to complete the sale.')
+      const message = err instanceof Error ? err.message : ''
+      setError(message || (lang === 'fr' ? 'Impossible de finaliser la vente.' : 'Unable to complete the sale.'))
     } finally {
       setSubmitting(false)
       checkoutLockRef.current = false
