@@ -134,6 +134,9 @@ begin
     v_subtotal := v_product.sale_price_xaf * v_quantity;
     v_total := v_total + v_subtotal;
 
+    -- dispense_fefo() currently has a 10-argument signature. The final
+    -- dispensing_record_id parameter is NULL for POS sales because POS uses
+    -- pos_sale_id as its stock-movement reference instead.
     perform dispense_fefo(
       p_clinic_id,
       v_product.id,
@@ -144,8 +147,7 @@ begin
       false,
       null,
       null,
-      null,
-      'sale'
+      null
     );
 
     insert into pos_sale_items (
