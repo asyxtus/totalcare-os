@@ -98,6 +98,7 @@ export async function checkoutPosSaleDetailed(formData: FormData) {
       revalidatePath('/pharmacy')
       revalidatePath('/pharmacy/pos')
       revalidatePath('/pharmacy/inventory')
+      revalidatePath('/pharmacy/pos/sales')
     } catch (revalidateError) {
       // A successful database sale must not be reported as a failed sale just
       // because cache invalidation failed after the transaction committed.
@@ -133,4 +134,53 @@ export async function checkoutPosSaleDetailed(formData: FormData) {
       error: message || 'Impossible de finaliser la vente.',
     }
   }
+}
+
+export async function savePosDailyReconciliation(date: string, formData: FormData) {
+  const staff = await getCurrentStaff()
+  const supabase = await createClient()
+
+  if (staff.role !== 'admin') {
+    return { error: 'Seul un administrateur peut enregistrer le rapprochement POS.' }
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return { error: 'Date de rapprochement invalide.' }
+  }
+
+  const cash = Number(formData.get('cash_counted_xaf'))
+  const momo = Number(formData.get('momo_counted_xaf'))
+  const orange = Number(formData.get('orange_money_counted_xaf'))
+  const notes = ((formData.get('notes') as string) ?? '').trim() || null
+
+  if (![cash, momo, orange].every((value) => Number.isFinite(value) && value >= 0)) {
+    return { error: 'Les montants comptés doivent être des nombres positifs ou nuls.' }
+  }
+
+  const { error } = await supabase
+    .from('pos_daily_reconciliations')
+    .upsert({
+      clinic_id: staff.clinicId,
+      reconciliation_date: date,
+      cash_counted_xaf: cash,
+      momo_counted_xaf: momo,
+      orange_money_counted_xaf: orange,
+      notes,
+      reconciled_by: staff.staffId,
+      reconciled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'clinic_id,reconciliation_date' })
+
+  if (error) {
+    console.error('[POS RECONCILIATION] save failed', {
+      clinicId: staff.clinicId,
+      date,
+      staffId: staff.staffId,
+      error,
+    })
+    return { error: `Impossible d'enregistrer le rapprochement : ${error.message}` }
+  }
+
+  revalidatePath('/pharmacy/pos/sales')
+  return { success: true }
 }
