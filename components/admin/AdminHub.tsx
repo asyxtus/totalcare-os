@@ -19,7 +19,14 @@ type Tab = 'users' | 'services' | 'lab' | 'inpatient' | 'audit'
 interface ServicePrice { id: string; service_name: string; category: string; price_xaf: number; is_active: boolean }
 interface ClinicTest {
   id: string; price_xaf: number; is_active: boolean
-  lab_test_catalog: { id: string; name_fr: string; name_en: string; category: string; result_type: string }
+  lab_test_catalog: {
+    id: string; name_fr: string; name_en: string; category: string; result_type: string
+    lab_code?: string | null; specimen_type?: string | null; unit?: string | null
+    reference_range_low?: number | null; reference_range_high?: number | null
+    critical_low?: number | null; critical_high?: number | null
+    qualitative_options?: string[] | null; abnormal_qualitative_values?: string[] | null
+    collection_container?: string | null; turnaround_time?: string | null
+  }
 }
 interface ClinicPanel {
   id: string; price_xaf: number; is_active: boolean
@@ -38,10 +45,6 @@ export default function AdminHub({
   auditEntries: AuditLogEntry[]
   lang: 'fr' | 'en'
 }) {
-  // Auditors get exactly one tab — the audit log itself — and nothing
-  // else, since the other four are privileged write surfaces (invite
-  // staff, change prices) an oversight role has no business acting on,
-  // and no reason to even see given it can't act on it anyway.
   const [tab, setTab] = useState<Tab>(role === 'auditor' ? 'audit' : 'users')
 
   const activeStaffCount = useMemo(() => staff.filter((s) => s.is_active).length, [staff])
@@ -66,9 +69,6 @@ export default function AdminHub({
     <div>
       {tabs.length > 1 && (
         <>
-          {/* Overview strip — real counts per section, doubling as tab
-              nav. Not decoration: each number is what an admin actually
-              wants at a glance before deciding which tab to open. */}
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, gap: '10px', marginBottom: '1.5rem' }}>
             {tabs.map((t) => {
               const Icon = t.icon
@@ -85,21 +85,12 @@ export default function AdminHub({
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <p style={{
-                      fontSize: '20px', fontWeight: 700, margin: 0,
-                      color: active ? 'var(--color-accent-text-on)' : 'var(--color-text-primary)',
-                    }}>
+                    <p style={{ fontSize: '20px', fontWeight: 700, margin: 0, color: active ? 'var(--color-accent-text-on)' : 'var(--color-text-primary)' }}>
                       {t.stat}
                     </p>
-                    <Icon size={16} aria-hidden style={{
-                      color: active ? 'var(--color-accent-text-on)' : 'var(--color-text-secondary)',
-                      opacity: active ? 0.9 : 0.6,
-                    }} />
+                    <Icon size={16} aria-hidden style={{ color: active ? 'var(--color-accent-text-on)' : 'var(--color-text-secondary)', opacity: active ? 0.9 : 0.6 }} />
                   </div>
-                  <p style={{
-                    fontSize: '12px', margin: '2px 0 0',
-                    color: active ? 'var(--color-accent-text-on)' : 'var(--color-text-secondary)',
-                  }}>
+                  <p style={{ fontSize: '12px', margin: '2px 0 0', color: active ? 'var(--color-accent-text-on)' : 'var(--color-text-secondary)' }}>
                     {t.label} · {t.statLabel}
                   </p>
                 </button>
@@ -111,13 +102,8 @@ export default function AdminHub({
         </>
       )}
 
-      {tab === 'users' && (
-        <StaffDirectory staff={staff} currentStaffId={currentStaffId} lang={lang} />
-      )}
-
-      {tab === 'services' && (
-        <ServicesPanel services={services} lang={lang} />
-      )}
+      {tab === 'users' && <StaffDirectory staff={staff} currentStaffId={currentStaffId} lang={lang} />}
+      {tab === 'services' && <ServicesPanel services={services} lang={lang} />}
 
       {tab === 'lab' && (
         <div>
@@ -127,13 +113,8 @@ export default function AdminHub({
         </div>
       )}
 
-      {tab === 'inpatient' && (
-        <InpatientPricingSection wards={wards} nursingRate={nursingRate} lang={lang} />
-      )}
-
-      {tab === 'audit' && (
-        <AuditLogViewer initialEntries={auditEntries} />
-      )}
+      {tab === 'inpatient' && <InpatientPricingSection wards={wards} nursingRate={nursingRate} lang={lang} />}
+      {tab === 'audit' && <AuditLogViewer initialEntries={auditEntries} />}
     </div>
   )
 }
