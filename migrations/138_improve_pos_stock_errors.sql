@@ -1,15 +1,11 @@
 -- ============================================================================
 -- MIGRATION 138: IMPROVE POS STOCK ERROR DIAGNOSTICS
 --
--- Distinguishes between:
---   1. enough sellable stock
---   2. insufficient sellable stock with expired stock present
---   3. insufficient sellable stock with quarantined/inactive batches present
---   4. genuinely insufficient physical stock
+-- Distinguishes between sellable, expired, quarantined, inactive-batch, and
+-- genuinely insufficient stock without using PL/pgSQL RAISE format strings.
+-- The latter avoids placeholder-count compilation errors.
 --
--- Important: this migration does NOT allow expired or quarantined stock to be
--- sold. It only makes the POS error explain why the requested quantity cannot
--- be fulfilled.
+-- This migration does NOT allow expired or quarantined stock to be sold.
 -- ============================================================================
 
 create or replace function public.record_pos_sale(
@@ -49,24 +45,24 @@ begin
       and clinic_id = p_clinic_id
       and is_active = true
   ) then
-    raise exception 'Selling staff member is not active in this clinic';
+    raise exception using message = 'Selling staff member is not active in this clinic';
   end if;
 
   if p_payment_method not in ('cash', 'momo', 'orange_money') then
-    raise exception 'Invalid POS payment method: %', p_payment_method;
+    raise exception using message = 'Invalid POS payment method: ' || p_payment_method::text;
   end if;
 
   if p_cart is null
      or jsonb_typeof(p_cart) <> 'array'
      or jsonb_array_length(p_cart) = 0 then
-    raise exception 'The POS cart is empty';
+    raise exception using message = 'The POS cart is empty';
   end if;
 
   if p_patient_id is not null and not exists (
     select 1 from patients
     where id = p_patient_id and clinic_id = p_clinic_id
   ) then
-    raise exception 'Patient does not belong to this clinic';
+    raise exception using message = 'Patient does not belong to this clinic';
   end if;
 
   -- ========================================================================
@@ -75,18 +71,19 @@ begin
   for v_cart_item in select * from jsonb_array_elements(p_cart)
   loop
     if coalesce(v_cart_item->>'product_id', '') = '' then
-      raise exception 'A POS cart line is missing its product';
+      raise exception using message = 'A POS cart line is missing its product';
     end if;
 
     begin
       v_quantity := (v_cart_item->>'quantity')::integer;
     exception when others then
-      raise exception 'Invalid quantity for product %', v_cart_item->>'product_id';
+      raise exception using message =
+        'Invalid quantity for product ' || coalesce(v_cart_item->>'product_id', '(unknown)');
     end;
 
     if v_quantity is null or v_quantity <= 0 then
-      raise exception 'Quantity must be greater than zero for product %',
-        v_cart_item->>'product_id';
+      raise exception using message =
+        'Quantity must be greater than zero for product ' || v_cart_item->>'product_id';
     end if;
 
     select
@@ -102,28 +99,28 @@ begin
       and pr.clinic_id = p_clinic_id;
 
     if v_product.id is null then
-      raise exception 'Product % not found in this clinic',
-        v_cart_item->>'product_id';
+      raise exception using message =
+        'Product ' || v_cart_item->>'product_id' || ' not found in this clinic';
     end if;
 
     if not v_product.is_active then
-      raise exception 'Product "%" is inactive and cannot be sold via POS',
-        v_product.name;
+      raise exception using message =
+        'Product "' || v_product.name || '" is inactive and cannot be sold via POS';
     end if;
 
     if v_product.sale_price_xaf is null or v_product.sale_price_xaf <= 0 then
-      raise exception 'Product "%" has no valid sale price', v_product.name;
+      raise exception using message =
+        'Product "' || v_product.name || '" has no valid sale price';
     end if;
 
     if v_product.is_controlled then
-      raise exception
-        'Controlled substance "%" cannot be sold via POS — use a prescription with a witness',
-        v_product.name;
+      raise exception using message =
+        'Controlled substance "' || v_product.name ||
+        '" cannot be sold via POS — use a prescription with a witness';
     end if;
 
-    -- Physical stock includes all stock currently represented by active,
-    -- non-depleted batches, regardless of expiry. This is useful for a clear
-    -- diagnostic, but it is NEVER used to authorize a sale.
+    -- Physical stock includes stock in active, quarantined, and other
+    -- non-depleted batches. It is diagnostic only and never authorizes a sale.
     select coalesce(sum(greatest(batch_quantity_on_hand(b.id), 0)), 0)::integer
       into v_physical_stock
     from batches b
@@ -131,7 +128,7 @@ begin
       and b.clinic_id = p_clinic_id
       and b.status <> 'depleted';
 
-    -- Sellable stock: active batches with a non-expired date.
+    -- Sellable stock: active batches whose expiry date has not passed.
     select coalesce(sum(greatest(batch_quantity_on_hand(b.id), 0)), 0)::integer
       into v_sellable_stock
     from batches b
@@ -140,7 +137,7 @@ begin
       and b.status = 'active'
       and b.expiry_date >= current_date;
 
-    -- Expired stock that still has units available.
+    -- Expired stock with units remaining.
     select coalesce(sum(greatest(batch_quantity_on_hand(b.id), 0)), 0)::integer
       into v_expired_stock
     from batches b
@@ -149,7 +146,7 @@ begin
       and b.status = 'active'
       and b.expiry_date < current_date;
 
-    -- Quarantined stock.
+    -- Quarantined stock with units remaining.
     select coalesce(sum(greatest(batch_quantity_on_hand(b.id), 0)), 0)::integer
       into v_quarantined_stock
     from batches b
@@ -193,58 +190,57 @@ begin
         and batch_quantity_on_hand(b.id) > 0;
 
       if v_expired_stock > 0 and v_sellable_stock = 0 then
-        raise exception
-          'Stock insuffisant pour % : demandé %, stock vendable 0. Stock physique %, dont % unité(s) expirée(s). Lots expirés : %',
-          v_product.name,
-          v_quantity,
-          v_physical_stock,
-          v_expired_stock,
+        raise exception using message =
+          'Stock insuffisant pour ' || v_product.name ||
+          ' : demandé ' || v_quantity::text ||
+          ', stock vendable 0. Stock physique ' || v_physical_stock::text ||
+          ', dont ' || v_expired_stock::text ||
+          ' unité(s) expirée(s). Lots expirés : ' ||
           coalesce(v_expired_batches, 'non spécifié');
 
       elsif v_expired_stock > 0 and v_sellable_stock > 0 then
-        raise exception
-          'Stock vendable insuffisant pour % : demandé %, vendable %. Stock physique %, dont % unité(s) expirée(s). Lots expirés : %',
-          v_product.name,
-          v_quantity,
-          v_sellable_stock,
-          v_physical_stock,
-          v_expired_stock,
+        raise exception using message =
+          'Stock vendable insuffisant pour ' || v_product.name ||
+          ' : demandé ' || v_quantity::text ||
+          ', vendable ' || v_sellable_stock::text ||
+          '. Stock physique ' || v_physical_stock::text ||
+          ', dont ' || v_expired_stock::text ||
+          ' unité(s) expirée(s). Lots expirés : ' ||
           coalesce(v_expired_batches, 'non spécifié');
 
       elsif v_quarantined_stock > 0 and v_sellable_stock = 0 then
-        raise exception
-          'Stock insuffisant pour % : demandé %, stock vendable 0. Stock physique %, dont % unité(s) en quarantaine. Lots en quarantaine : %',
-          v_product.name,
-          v_quantity,
-          v_physical_stock,
-          v_quarantined_stock,
+        raise exception using message =
+          'Stock insuffisant pour ' || v_product.name ||
+          ' : demandé ' || v_quantity::text ||
+          ', stock vendable 0. Stock physique ' || v_physical_stock::text ||
+          ', dont ' || v_quarantined_stock::text ||
+          ' unité(s) en quarantaine. Lots en quarantaine : ' ||
           coalesce(v_quarantine_batches, 'non spécifié');
 
       elsif v_quarantined_stock > 0 then
-        raise exception
-          'Stock vendable insuffisant pour % : demandé %, vendable %. Stock physique %, dont % unité(s) en quarantaine. Lots en quarantaine : %',
-          v_product.name,
-          v_quantity,
-          v_sellable_stock,
-          v_physical_stock,
-          v_quarantined_stock,
+        raise exception using message =
+          'Stock vendable insuffisant pour ' || v_product.name ||
+          ' : demandé ' || v_quantity::text ||
+          ', vendable ' || v_sellable_stock::text ||
+          '. Stock physique ' || v_physical_stock::text ||
+          ', dont ' || v_quarantined_stock::text ||
+          ' unité(s) en quarantaine. Lots en quarantaine : ' ||
           coalesce(v_quarantine_batches, 'non spécifié');
 
       elsif v_inactive_batch_stock > 0 then
-        raise exception
-          'Stock vendable insuffisant pour % : demandé %, vendable %. Stock physique %, avec % unité(s) dans des lots non actifs',
-          v_product.name,
-          v_quantity,
-          v_sellable_stock,
-          v_inactive_batch_stock;
+        raise exception using message =
+          'Stock vendable insuffisant pour ' || v_product.name ||
+          ' : demandé ' || v_quantity::text ||
+          ', vendable ' || v_sellable_stock::text ||
+          '. Stock physique, avec ' || v_inactive_batch_stock::text ||
+          ' unité(s) dans des lots non actifs';
 
       else
-        raise exception
-          'Stock réellement insuffisant pour % : demandé %, stock vendable %, stock physique %',
-          v_product.name,
-          v_quantity,
-          v_sellable_stock,
-          v_physical_stock;
+        raise exception using message =
+          'Stock réellement insuffisant pour ' || v_product.name ||
+          ' : demandé ' || v_quantity::text ||
+          ', stock vendable ' || v_sellable_stock::text ||
+          ', stock physique ' || v_physical_stock::text;
       end if;
     end if;
   end loop;
@@ -273,8 +269,8 @@ begin
       and pr.is_active = true;
 
     if v_product.id is null then
-      raise exception 'Product % is no longer active',
-        v_cart_item->>'product_id';
+      raise exception using message =
+        'Product ' || v_cart_item->>'product_id' || ' is no longer active';
     end if;
 
     v_subtotal := v_product.sale_price_xaf * v_quantity;
