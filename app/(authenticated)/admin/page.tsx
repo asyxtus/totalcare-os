@@ -15,10 +15,6 @@ export default async function AdminPage() {
   const lang = staff.preferredLanguage
   const isAdmin = staff.role === 'admin'
 
-  // Auditors get read-only visibility into the audit trail only — the
-  // other tabs (Staff, Pricing, Inpatient) are privileged write
-  // surfaces with no reason to even fetch their data for a role that
-  // can't act on it.
   const { entries: auditEntries } = await fetchAuditLogAction({})
 
   if (!isAdmin) {
@@ -46,10 +42,6 @@ export default async function AdminPage() {
     .eq('clinic_id', staff.clinicId)
     .order('full_name')
 
-  // Email lives on auth.users, not the staff table — resolved via the
-  // service-role client since the anon client has no visibility into
-  // other people's auth records. N sequential lookups is fine at the
-  // scale a single clinic's staff table actually reaches.
   const adminClient = createAdminClient()
   const staffWithEmail = await Promise.all(
     (staffRows ?? []).map(async (row) => {
@@ -59,8 +51,6 @@ export default async function AdminPage() {
     })
   )
 
-  // Secondary roles per person — fetched in one batch rather than N
-  // queries, then grouped client-side by staff_id for the row component.
   const staffIds = staffWithEmail.map((s) => s.id)
   const { data: secondaryRolesRaw } = staffIds.length > 0
     ? await supabase.from('staff_secondary_roles').select('staff_id, role').in('staff_id', staffIds)
@@ -79,9 +69,20 @@ export default async function AdminPage() {
     .eq('clinic_id', staff.clinicId)
     .order('category').order('service_name')
 
+  // Laboratory admin view: this is the clinic's activated/priced catalogue.
+  // Include the full clinical metadata so the same Laboratory tab is the
+  // source of truth for code, specimen, container, turnaround and ranges.
   const { data: clinicTests } = await supabase
     .from('clinic_lab_tests')
-    .select('id, price_xaf, is_active, lab_test_catalog(id, name_fr, name_en, category, result_type)')
+    .select(`
+      id, price_xaf, is_active,
+      lab_test_catalog(
+        id, name_fr, name_en, category, result_type, lab_code,
+        specimen_type, unit, reference_range_low, reference_range_high,
+        critical_low, critical_high, qualitative_options,
+        abnormal_qualitative_values, collection_container, turnaround_time
+      )
+    `)
     .eq('clinic_id', staff.clinicId)
 
   const { data: clinicPanels } = await supabase
@@ -89,9 +90,6 @@ export default async function AdminPage() {
     .select('id, price_xaf, is_active, lab_panels(id, name_fr, name_en, category, lab_panel_items(lab_test_catalog_id, lab_test_catalog(name_fr)))')
     .eq('clinic_id', staff.clinicId)
 
-  // Full catalog for the "which tests go in this new panel" picker —
-  // scoped to this clinic's own catalog (lab_test_catalog is
-  // clinic-owned as of 95_lab_catalog_clinic_scoping.sql).
   const { data: fullCatalog } = await supabase
     .from('lab_test_catalog')
     .select('id, name_fr, name_en, category')
@@ -112,9 +110,7 @@ export default async function AdminPage() {
 
   return (
     <div style={{ maxWidth: '960px' }}>
-      <h1 style={{ fontSize: '18px', fontWeight: 500, margin: '0 0 4px' }}>
-        {lang === 'fr' ? 'Administration' : 'Administration'}
-      </h1>
+      <h1 style={{ fontSize: '18px', fontWeight: 500, margin: '0 0 4px' }}>Administration</h1>
       <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 1.25rem' }}>
         {staff.clinicName}
       </p>
