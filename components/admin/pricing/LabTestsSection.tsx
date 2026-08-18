@@ -8,7 +8,11 @@ import { createLabTestAction, updateClinicLabTestAction, toggleClinicLabTestActi
 
 interface ClinicTest {
   id: string; price_xaf: number; is_active: boolean
-  lab_test_catalog: { id: string; name_fr: string; name_en: string; category: string; result_type: string }
+  lab_test_catalog: {
+    id: string; name_fr: string; name_en: string; category: string; result_type: string
+    lab_code?: string | null; specimen_type?: string | null
+    collection_container?: string | null; turnaround_time?: string | null
+  }
 }
 
 const inputStyle: React.CSSProperties = {
@@ -51,8 +55,12 @@ function TestRow({ test, lang }: { test: ClinicTest; lang: 'fr' | 'en' }) {
         <p style={{ fontSize: '13px', fontWeight: 500, margin: 0 }}>
           {lang === 'fr' ? cat?.name_fr : cat?.name_en}
         </p>
-        <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
-          {cat?.result_type === 'numeric' ? (lang === 'fr' ? 'Numérique' : 'Numeric') : (lang === 'fr' ? 'Qualitatif' : 'Qualitative')}
+        <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', margin: '2px 0 0', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {cat?.lab_code && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{cat.lab_code}</span>}
+          <span>{cat?.result_type === 'numeric' ? (lang === 'fr' ? 'Numérique' : 'Numeric') : (lang === 'fr' ? 'Qualitatif' : 'Qualitative')}</span>
+          {cat?.specimen_type && <span>• {cat.specimen_type}</span>}
+          {cat?.collection_container && <span>• {cat.collection_container}</span>}
+          {cat?.turnaround_time && <span>• {cat.turnaround_time}</span>}
         </p>
         {error && <p style={{ fontSize: '11px', color: 'var(--color-critical-text)', margin: '2px 0 0' }}>{error}</p>}
       </div>
