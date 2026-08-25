@@ -69,6 +69,9 @@ export async function completeConsultation(
   const examinationNotes = (formData.get('examination_notes') as string)?.trim()
   const diagnoses = parseDiagnoses(formData)
   const treatmentPlan = (formData.get('treatment_plan') as string)?.trim()
+  const followupDate = (formData.get('followup_date') as string)?.trim() || null
+  const followupTime = (formData.get('followup_time') as string)?.trim() || null
+  const followupReason = (formData.get('followup_reason') as string)?.trim() || null
 
   if (diagnoses.length > 0) {
     const primaryCount = diagnoses.filter((d) => d.isPrimary).length
@@ -97,7 +100,6 @@ export async function completeConsultation(
     return { error: `Impossible d'enregistrer la consultation : ${consultationSaveError.message}` }
   }
 
-  // Prescription rows
   const productIds = formData.getAll('rx_product_id') as string[]
   const freetextNames = formData.getAll('rx_freetext_name') as string[]
   const doses = formData.getAll('rx_dose') as string[]
@@ -207,6 +209,29 @@ export async function completeConsultation(
     p_has_admission: admitPatient,
   })
   if (completeError) return { error: `Impossible de terminer la consultation : ${completeError.message}` }
+
+  // Follow-up creation happens only after the consultation has successfully
+  // completed. The database RPC verifies that this consultation is complete,
+  // belongs to this patient/clinic, and is owned by the clinician. No fee or
+  // discount is accepted from the browser.
+  if (followupDate || followupTime) {
+    if (!followupDate || !followupTime) {
+      return { error: 'La date et l\'heure du suivi doivent être renseignées ensemble.' }
+    }
+
+    const { error: followupError } = await supabase.rpc('schedule_followup_from_consultation', {
+      p_visit_id: visitId,
+      p_consultation_id: consultationId,
+      p_doctor_id: staff.staffId,
+      p_followup_date: followupDate,
+      p_followup_time: followupTime,
+      p_reason: followupReason,
+    })
+
+    if (followupError) {
+      return { error: `Consultation terminée, mais le rendez-vous de suivi n'a pas pu être créé : ${followupError.message}` }
+    }
+  }
 
   redirect('/dashboard')
 }
