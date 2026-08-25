@@ -16,7 +16,7 @@ export default function ImagingWorkQueue({ rows, lang }: { rows:ImagingQueueRow[
   const [filter,setFilter]=useState('active'); const [selected,setSelected]=useState<ImagingQueueRow|null>(null); const [report,setReport]=useState(''); const [busy,setBusy]=useState(false); const [error,setError]=useState<string|null>(null)
   const fr=lang==='fr'
   const visible=useMemo(()=>rows.filter(r=>filter==='all'||filter==='active'?!['completed','cancelled'].includes(r.item_status):r.item_status==='completed'),[rows,filter])
-  const start=async(id:string)=>{setBusy(true);setError(null);const r=await startImagingItem(id);if('error'in r&&r.error)setError(r.error);setBusy(false);if(!r.error)location.reload()}
+  const start=async(id:string)=>{setBusy(true);setError(null);const r=await startImagingItem(id);if('error' in r){setError(r.error)}else{location.reload()}setBusy(false)}
   const finish=async()=>{if(!selected)return;if(!report.trim())return setError(fr?'Le compte rendu est obligatoire.':'Report is required.');setBusy(true);setError(null);const r=await completeImagingItem(selected.item_id,report);if('error'in r&&r.error)setError(r.error);else{setSelected(null);setReport('');location.reload()}setBusy(false)}
   return <div>
     <div style={{display:'flex',gap:6,marginBottom:10}}>{[['active',fr?'Actifs':'Active'],['completed',fr?'Terminés':'Completed'],['all',fr?'Tous':'All']].map(([id,label])=><button key={id} onClick={()=>setFilter(id)} style={{padding:'6px 10px',border:'1px solid var(--color-border)',borderRadius:'var(--radius-sm)',background:filter===id?'var(--color-accent)':'transparent',color:filter===id?'var(--color-accent-text-on)':'var(--color-text-primary)',fontSize:11,cursor:'pointer'}}>{label}</button>)}</div>
