@@ -4,8 +4,72 @@
 -- 147 introduced appointment-aware registration. This patch initializes the
 -- entitlement record explicitly so ordinary walk-in registrations never try
 -- to read an unassigned RECORD variable.
+--
+-- IMPORTANT: Some installations may have attempted to run this migration
+-- directly before 147 was successfully applied. The prerequisite DDL below is
+-- therefore idempotent. If 147 already ran, these statements are no-ops.
 -- ============================================================================
 
+-- ---------------------------------------------------------------------------
+-- Ensure the 147 entitlement schema exists before the registration function
+-- can reference it. This makes 148 safe to rerun after a partial migration.
+-- ---------------------------------------------------------------------------
+create table if not exists public.appointment_fee_entitlements (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  patient_id uuid not null references public.patients(id) on delete restrict,
+  appointment_id uuid unique,
+  source_visit_id uuid not null references public.visits(id) on delete restrict,
+  source_consultation_id uuid not null references public.consultations(id) on delete restrict,
+  policy_id uuid references public.consultation_followup_policies(id) on delete restrict,
+  normal_fee_xaf numeric(12,2) not null check (normal_fee_xaf >= 0),
+  authorized_patient_fee_xaf numeric(12,2) not null check (authorized_patient_fee_xaf >= 0),
+  authorized_discount_xaf numeric(12,2) not null check (authorized_discount_xaf >= 0),
+  valid_from timestamptz not null,
+  valid_until timestamptz not null,
+  status text not null default 'active'
+    check (status in ('active','redeemed','expired','cancelled','revoked')),
+  redeemed_visit_id uuid references public.visits(id) on delete set null,
+  redeemed_by uuid references public.staff(id) on delete set null,
+  redeemed_at timestamptz,
+  created_by uuid not null references public.staff(id) on delete restrict,
+  created_at timestamptz not null default now(),
+  check (valid_until >= valid_from),
+  check (authorized_patient_fee_xaf <= normal_fee_xaf),
+  check (authorized_discount_xaf = normal_fee_xaf - authorized_patient_fee_xaf)
+);
+
+alter table public.appointments
+  add column if not exists fee_entitlement_id uuid
+    references public.appointment_fee_entitlements(id) on delete set null;
+
+alter table public.appointments
+  add column if not exists source_visit_id uuid
+    references public.visits(id) on delete set null;
+
+alter table public.appointments
+  add column if not exists source_consultation_id uuid
+    references public.consultations(id) on delete set null;
+
+create index if not exists idx_fee_entitlements_patient_status
+  on public.appointment_fee_entitlements (clinic_id, patient_id, status, valid_from, valid_until);
+
+create index if not exists idx_fee_entitlements_source_encounter
+  on public.appointment_fee_entitlements (source_visit_id, source_consultation_id);
+
+create index if not exists idx_appointments_fee_entitlement
+  on public.appointments (fee_entitlement_id)
+  where fee_entitlement_id is not null;
+
+create index if not exists idx_appointments_source_visit
+  on public.appointments (source_visit_id)
+  where source_visit_id is not null;
+
+alter table public.appointment_fee_entitlements enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Replace the appointment-aware registration RPC.
+-- ---------------------------------------------------------------------------
 drop function if exists public.register_visit_with_charge(uuid, uuid, text, uuid, uuid, uuid);
 
 create function public.register_visit_with_charge(
