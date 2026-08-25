@@ -1,7 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
+
+function localDateString() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 export default function ConsultationFollowupScheduler() {
   const pathname = usePathname()
@@ -9,8 +17,10 @@ export default function ConsultationFollowupScheduler() {
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [reason, setReason] = useState('')
+  const [touched, setTouched] = useState(false)
 
   const isConsultationPage = /^\/visits\/[^/]+\/consultation\/?$/.test(pathname ?? '')
+  const today = useMemo(() => localDateString(), [])
 
   useEffect(() => {
     if (!isConsultationPage) return
@@ -36,25 +46,35 @@ export default function ConsultationFollowupScheduler() {
 
   if (!isConsultationPage) return null
 
+  const incomplete = enabled && (!date || !time)
+
   return (
     <div style={{
       maxWidth: '640px',
       margin: '0 auto 1rem',
-      padding: '12px 14px',
+      padding: '14px',
       border: enabled ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
       borderRadius: 'var(--radius-md)',
       background: 'var(--color-surface)',
     }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-        <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
-        {"Programmer un rendez-vous de suivi"}
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={e => {
+            setEnabled(e.target.checked)
+            setTouched(false)
+          }}
+        />
+        Programmer un rendez-vous de suivi
       </label>
 
       {enabled && (
-        <div style={{ marginTop: 10 }}>
-          <p style={{ margin: '0 0 10px', fontSize: 11, color: 'var(--color-text-secondary)' }}>
-            Le rendez-vous sera automatiquement lié à cette consultation. Si une règle de suivi existe pour cette clinique, le montant autorisé sera appliqué automatiquement à la prochaine visite. Le médecin ne saisit jamais lui-même la remise.
+        <div style={{ marginTop: 12 }}>
+          <p style={{ margin: '0 0 10px', fontSize: 11, lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>
+            Le rendez-vous sera créé directement à partir de cette consultation. Le système déterminera automatiquement le tarif de suivi selon la règle de la clinique. Le médecin ne saisit jamais lui-même une remise.
           </p>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px', gap: 8 }}>
             <div>
               <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
@@ -63,8 +83,11 @@ export default function ConsultationFollowupScheduler() {
               <input
                 type="date"
                 value={date}
-                min={new Date().toISOString().slice(0, 10)}
-                onChange={e => setDate(e.target.value)}
+                min={today}
+                onChange={e => {
+                  setDate(e.target.value)
+                  setTouched(true)
+                }}
                 required={enabled}
                 style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg)', color: 'var(--color-text-primary)', fontSize: 12 }}
               />
@@ -76,12 +99,16 @@ export default function ConsultationFollowupScheduler() {
               <input
                 type="time"
                 value={time}
-                onChange={e => setTime(e.target.value)}
+                onChange={e => {
+                  setTime(e.target.value)
+                  setTouched(true)
+                }}
                 required={enabled}
                 style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg)', color: 'var(--color-text-primary)', fontSize: 12 }}
               />
             </div>
           </div>
+
           <div style={{ marginTop: 8 }}>
             <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
               Motif du suivi (facultatif)
@@ -93,6 +120,12 @@ export default function ConsultationFollowupScheduler() {
               style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg)', color: 'var(--color-text-primary)', fontSize: 12 }}
             />
           </div>
+
+          {incomplete && touched && (
+            <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--color-danger, #b42318)' }}>
+              La date et l'heure doivent être renseignées pour programmer le suivi.
+            </p>
+          )}
         </div>
       )}
     </div>
