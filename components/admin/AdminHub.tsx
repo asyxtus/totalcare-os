@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Users, Tags, FlaskConical, ScanLine, BedDouble, ScrollText, type LucideIcon } from 'lucide-react'
+import { Users, Tags, FlaskConical, ScanLine, BedDouble, ScrollText, CalendarClock, type LucideIcon } from 'lucide-react'
 import { TabBar } from '@/components/ui'
 import StaffDirectory from './StaffDirectory'
 import type { StaffMember } from './StaffRow'
@@ -10,10 +10,11 @@ import LabTestsSection from './pricing/LabTestsSection'
 import LabPanelsSection from './pricing/LabPanelsSection'
 import ImagingSection, { type ImagingCatalogItem } from './pricing/ImagingSection'
 import InpatientPricingSection from './pricing/InpatientPricingSection'
+import ConsultationFollowupPricingSection from './pricing/ConsultationFollowupPricingSection'
 import AuditLogViewer from './AuditLogViewer'
 import type { AuditLogEntry } from '@/lib/actions/auditLog'
 
-type Tab = 'users' | 'services' | 'lab' | 'imaging' | 'inpatient' | 'audit'
+type Tab = 'users' | 'services' | 'lab' | 'imaging' | 'inpatient' | 'followup' | 'audit'
 interface ServicePrice { id: string; service_name: string; category: string; price_xaf: number; is_active: boolean }
 interface ClinicTest { id: string; price_xaf: number; is_active: boolean; lab_test_catalog: any }
 interface ClinicPanel { id: string; price_xaf: number; is_active: boolean; lab_panels: any }
@@ -38,6 +39,7 @@ export default function AdminHub({ role, staff, currentStaffId, services, clinic
     { id: 'lab', label: lang === 'fr' ? 'Laboratoire' : 'Laboratory', stat: activeLabCount, statLabel: lang === 'fr' ? 'actifs' : 'active', icon: FlaskConical },
     { id: 'imaging', label: lang === 'fr' ? 'Imagerie' : 'Imaging', stat: activeImagingCount, statLabel: lang === 'fr' ? 'actifs' : 'active', icon: ScanLine },
     { id: 'inpatient', label: lang === 'fr' ? 'Hospitalisation' : 'Inpatient', stat: activeWardCount, statLabel: lang === 'fr' ? 'tarifés' : 'priced', icon: BedDouble },
+    { id: 'followup', label: lang === 'fr' ? 'Suivi' : 'Follow-up', stat: 0, statLabel: lang === 'fr' ? 'règles' : 'rules', icon: CalendarClock },
     { id: 'audit', label: lang === 'fr' ? "Journal d'audit" : 'Audit Log', stat: auditEntries.length, statLabel: lang === 'fr' ? 'récentes' : 'recent', icon: ScrollText },
   ]
   const tabs = role === 'auditor' ? allTabs.filter(t => t.id === 'audit') : allTabs
@@ -51,6 +53,7 @@ export default function AdminHub({ role, staff, currentStaffId, services, clinic
     {tab === 'lab' && <div><LabTestsSection clinicTests={clinicTests} lang={lang} /><div style={{height:'2rem'}} /><LabPanelsSection clinicPanels={clinicPanels} fullCatalog={fullCatalog} lang={lang} /></div>}
     {tab === 'imaging' && <ImagingSection items={imagingCatalog} lang={lang} />}
     {tab === 'inpatient' && <InpatientPricingSection wards={wards} nursingRate={nursingRate} lang={lang} />}
+    {tab === 'followup' && <ConsultationFollowupPricingSection lang={lang} />}
     {tab === 'audit' && <AuditLogViewer initialEntries={auditEntries} />}
   </div>
 }
