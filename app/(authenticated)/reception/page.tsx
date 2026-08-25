@@ -28,7 +28,7 @@ export default async function ReceptionPage({
     newPatient = data
   }
 
-  // ── Queue tab data (unchanged from the old standalone Reception page) ──
+  // ── Queue tab data ──
   const { data: awaitingPayment, error: awaitingPaymentError } = await supabase
     .from('visits')
     .select('id, status, visit_reason, created_at, is_emergency, patients(id, full_name, patient_code)')
@@ -41,12 +41,8 @@ export default async function ReceptionPage({
     .eq('status', 'waiting_consultation')
     .order('created_at', { ascending: true })
 
-  // THE FIX: explicit clinic_id filter on both doctor queries — previously
-  // relied on RLS alone, which leaked another clinic's doctors into this
-  // list for any account that happens to also be an active platform
-  // admin (see migration 143). staff_secondary_roles has no clinic_id
-  // of its own, so it's filtered through the nested staff:staff_id(...)
-  // relationship instead.
+  // Explicit clinic_id filter on both doctor queries — prevents cross-clinic
+  // doctors appearing for platform-admin accounts.
   const { data: primaryDoctors } = await supabase
     .from('staff')
     .select('id, full_name')
@@ -54,9 +50,6 @@ export default async function ReceptionPage({
     .eq('role', 'doctor')
     .eq('is_active', true)
 
-  // Someone whose PRIMARY role is something else but who holds "doctor"
-  // as a secondary role — via the multi-role switcher — should still
-  // show up here as someone a patient can be assigned/checked in to.
   const { data: secondaryDoctorRows } = await supabase
     .from('staff_secondary_roles')
     .select('staff:staff_id(id, full_name, is_active, clinic_id)')
@@ -76,7 +69,24 @@ export default async function ReceptionPage({
     .eq('clinic_id', staff.clinicId)
     .gte('created_at', todayStart.toISOString())
 
-  // ── Appointments tab data (moved from the old standalone /appointments) ──
+  // ── Direct laboratory catalogue ──
+  // Reception uses the clinic-specific catalogue so the displayed price is
+  // exactly the price that the atomic database function will charge.
+  const { data: directLabTests } = await supabase
+    .from('clinic_lab_tests')
+    .select('id, price_xaf, lab_test_catalog(id, name_fr, name_en, category)')
+    .eq('clinic_id', staff.clinicId)
+    .eq('is_active', true)
+    .order('price_xaf', { ascending: true })
+
+  const { data: directLabPanels } = await supabase
+    .from('clinic_lab_panels')
+    .select('id, price_xaf, lab_panels(id, name_fr, name_en)')
+    .eq('clinic_id', staff.clinicId)
+    .eq('is_active', true)
+    .order('price_xaf', { ascending: true })
+
+  // ── Appointments tab data ──
   const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : todayInDouala()
   const { start, end } = dayRangeUtc(date)
 
@@ -101,8 +111,7 @@ export default async function ReceptionPage({
     .eq('is_active', true)
     .order('price_xaf', { ascending: true })
 
-  // ── Reminder call list — tomorrow's scheduled appointments ──
-  // Compute tomorrow in Douala time (today + 1 day)
+  // ── Reminder call list ──
   const reminderDate = (() => {
     const d = new Date(new Date(todayInDouala() + 'T12:00:00Z').getTime() + 24 * 60 * 60 * 1000)
     return d.toISOString().slice(0, 10)
@@ -112,11 +121,9 @@ export default async function ReceptionPage({
     p_date: reminderDate,
   })
 
-  // Land on appointments tab if arriving from new patient registration,
-  // if a specific date is requested, or if explicitly asked for.
-  // Otherwise default to the queue — the higher-frequency task.
-  const initialTab: 'queue' | 'appointments' | 'reminders' =
+  const initialTab: 'queue' | 'appointments' | 'reminders' | 'direct_lab' =
     tabParam === 'reminders' ? 'reminders'
+    : tabParam === 'direct_lab' ? 'direct_lab'
     : !!newPatientId || tabParam === 'appointments' || !!dateParam ? 'appointments'
     : 'queue'
 
@@ -146,6 +153,11 @@ export default async function ReceptionPage({
         reminderProps={{
           rows: (reminderRows ?? []) as any,
           targetDate: reminderDate,
+        }}
+        directLabProps={{
+          lang: staff.preferredLanguage,
+          tests: (directLabTests ?? []) as any,
+          panels: (directLabPanels ?? []) as any,
         }}
       />
     </div>
