@@ -33,23 +33,17 @@ export default function ReceptionHub({ initialTab, queueProps, appointmentsProps
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
-        <div>
-          <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', margin: 0 }}>
-            {lang === 'fr' ? 'Accès rapide aux services sans consultation' : 'Quick access to services without a consultation'}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setTab('direct_imaging')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 12px', border: '1px solid var(--color-accent)', borderRadius: 'var(--radius-sm)', background: 'var(--color-success-bg)', color: 'var(--color-accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-        >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+        <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', margin: 0 }}>
+          {lang === 'fr' ? 'Accès rapide aux services sans consultation' : 'Quick access to services without a consultation'}
+        </p>
+        <button type="button" onClick={() => setTab('direct_imaging')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 12px', border: '1px solid var(--color-accent)', borderRadius: 'var(--radius-sm)', background: 'var(--color-success-bg)', color: 'var(--color-accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
           <ScanLine size={14} aria-hidden />
           {lang === 'fr' ? 'Nouvelle imagerie directe' : 'New direct imaging'}
         </button>
       </div>
 
-      <TabBar tabs={tabs} active={tab} onChange={setTab} className="reception-tabs" />
+      <TabBar tabs={tabs} active={tab} onChange={setTab} className="reception-tabs" style={{ overflowX: 'visible', flexWrap: 'wrap' }} />
 
       {tab === 'queue' && <QueueTab {...queueProps} />}
       {tab === 'appointments' && <AppointmentsList {...appointmentsProps} newPatient={appointmentsProps.newPatient} />}
