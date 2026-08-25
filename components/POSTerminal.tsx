@@ -1,9 +1,7 @@
 'use client'
 
-// components/POSTerminal.tsx
-
 import { useState, useRef, useEffect } from 'react'
-import { checkoutPosSaleDetailed } from '@/lib/actions/pos'
+import { checkoutPosSaleDetailed, type PosStockDiagnostic } from '@/lib/actions/pos'
 import { useLang } from '@/lib/i18n/LangContext'
 
 interface Product {
@@ -29,6 +27,7 @@ export default function POSTerminal({ products }: { products: Product[] }) {
   const [cart, setCart] = useState<CartLine[]>([])
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'momo' | 'orange_money'>('cash')
   const [error, setError] = useState<string | null>(null)
+  const [stockDiagnostic, setStockDiagnostic] = useState<PosStockDiagnostic | null>(null)
   const [success, setSuccess] = useState<{ total: number; saleId: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -45,8 +44,13 @@ export default function POSTerminal({ products }: { products: Product[] }) {
       )
     : products
 
-  function addToCart(product: Product) {
+  function clearError() {
     setError(null)
+    setStockDiagnostic(null)
+  }
+
+  function addToCart(product: Product) {
+    clearError()
     setCart((prev) => {
       const existing = prev.find((l) => l.productId === product.id)
       if (existing) {
@@ -73,11 +77,13 @@ export default function POSTerminal({ products }: { products: Product[] }) {
       addToCart(visibleProducts[0])
       setQuery('')
     } else if (visibleProducts.length === 0) {
-      setError(lang==='fr'?`Aucun produit trouvé pour « ${trimmed} »`:`No product found for '${trimmed}'`)
+      clearError()
+      setError(lang === 'fr' ? `Aucun produit trouvé pour « ${trimmed} »` : `No product found for '${trimmed}'`)
     }
   }
 
   function updateQuantity(productId: string, delta: number) {
+    clearError()
     setCart((prev) => prev
       .map((l) => l.productId === productId ? { ...l, quantity: l.quantity + delta } : l)
       .filter((l) => l.quantity > 0)
@@ -85,6 +91,7 @@ export default function POSTerminal({ products }: { products: Product[] }) {
   }
 
   function removeLine(productId: string) {
+    clearError()
     setCart((prev) => prev.filter((l) => l.productId !== productId))
   }
 
@@ -94,7 +101,7 @@ export default function POSTerminal({ products }: { products: Product[] }) {
     if (cart.length === 0 || checkoutLockRef.current) return
     checkoutLockRef.current = true
     setSubmitting(true)
-    setError(null)
+    clearError()
 
     try {
       const formData = new FormData()
@@ -104,18 +111,42 @@ export default function POSTerminal({ products }: { products: Product[] }) {
       const result = await checkoutPosSaleDetailed(formData)
       if (result && 'error' in result && result.error) {
         setError(result.error)
+        setStockDiagnostic('stockDiagnostic' in result ? result.stockDiagnostic ?? null : null)
       } else {
         setSuccess({ total, saleId: 'saleId' in result ? result.saleId : '' })
         setCart([])
+        setStockDiagnostic(null)
       }
     } catch (err) {
       console.error('POS checkout failed:', err)
       const message = err instanceof Error ? err.message : ''
       setError(message || (lang === 'fr' ? 'Impossible de finaliser la vente.' : 'Unable to complete the sale.'))
+      setStockDiagnostic(null)
     } finally {
       setSubmitting(false)
       checkoutLockRef.current = false
     }
+  }
+
+  function stockReason(diagnostic: PosStockDiagnostic) {
+    if (diagnostic.reason === 'expired') {
+      return lang === 'fr'
+        ? 'Toutes les unités physiques restantes sont expirées.'
+        : 'All remaining physical stock is expired.'
+    }
+    if (diagnostic.reason === 'quarantined') {
+      return lang === 'fr'
+        ? 'Le stock physique restant est en quarantaine et ne peut pas être vendu.'
+        : 'The remaining physical stock is quarantined and cannot be sold.'
+    }
+    if (diagnostic.reason === 'inactive_batches') {
+      return lang === 'fr'
+        ? 'Une partie du stock se trouve dans des lots non actifs.'
+        : 'Some physical stock is in inactive batches.'
+    }
+    return lang === 'fr'
+      ? 'Le stock réellement vendable est insuffisant.'
+      : 'There is not enough sellable stock.'
   }
 
   return (
@@ -126,7 +157,7 @@ export default function POSTerminal({ products }: { products: Product[] }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleSearchKeyDown}
-          placeholder={lang==="fr"?"Scanner un code-barres ou rechercher…":"Scan barcode or search…"}
+          placeholder={lang === 'fr' ? 'Scanner un code-barres ou rechercher…' : 'Scan barcode or search…'}
           style={{
             padding: '12px 16px', border: '2px solid var(--color-accent)', borderRadius: 'var(--radius-md)',
             fontSize: '15px', background: 'var(--color-surface)', color: 'var(--color-text-primary)',
@@ -135,11 +166,24 @@ export default function POSTerminal({ products }: { products: Product[] }) {
           autoFocus
         />
 
-        {error && (
-          <p style={{ fontSize: '13px', color: 'var(--color-critical-text)', background: 'var(--color-critical-bg)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', marginBottom: '1rem' }}>
+        {stockDiagnostic ? (
+          <div role="alert" style={{ background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)', padding: '12px 14px', borderRadius: 'var(--radius-md)', marginBottom: '1rem', border: '1px solid color-mix(in srgb, var(--color-critical-text) 18%, transparent)' }}>
+            <p style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 8px' }}>
+              {stockDiagnostic.productName} — {lang === 'fr' ? 'stock indisponible à la vente' : 'stock unavailable for sale'}
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px', marginBottom: '9px' }}>
+              <div><div style={{ fontSize: '10px', opacity: 0.75 }}>{lang === 'fr' ? 'Demandé' : 'Requested'}</div><strong>{stockDiagnostic.requested}</strong></div>
+              <div><div style={{ fontSize: '10px', opacity: 0.75 }}>{lang === 'fr' ? 'Stock vendable' : 'Sellable stock'}</div><strong>{stockDiagnostic.sellable}</strong></div>
+              <div><div style={{ fontSize: '10px', opacity: 0.75 }}>{lang === 'fr' ? 'Stock physique' : 'Physical stock'}</div><strong>{stockDiagnostic.physical}</strong></div>
+            </div>
+            <p style={{ fontSize: '12px', margin: '0 0 5px' }}><strong>{lang === 'fr' ? 'Motif :' : 'Reason:'}</strong> {stockReason(stockDiagnostic)}</p>
+            {stockDiagnostic.expiryLots && <p style={{ fontSize: '11px', margin: 0, opacity: 0.9 }}><strong>{lang === 'fr' ? 'Lots concernés :' : 'Affected batches:'}</strong> {stockDiagnostic.expiryLots}</p>}
+          </div>
+        ) : error ? (
+          <p role="alert" style={{ fontSize: '13px', color: 'var(--color-critical-text)', background: 'var(--color-critical-bg)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', marginBottom: '1rem' }}>
             {error}
           </p>
-        )}
+        ) : null}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
           {visibleProducts.map((p) => (
@@ -157,7 +201,7 @@ export default function POSTerminal({ products }: { products: Product[] }) {
               </p>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-accent)' }}>
-                  {p.salePriceXaf.toLocaleString(lang==='fr'?'fr-FR':'en-US')} FCFA
+                  {p.salePriceXaf.toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US')} FCFA
                 </span>
                 <span style={{ fontSize: '11px', color: p.onHand > 0 ? 'var(--color-text-secondary)' : 'var(--color-critical-text)' }}>
                   {p.onHand} en stock
@@ -167,7 +211,7 @@ export default function POSTerminal({ products }: { products: Product[] }) {
           ))}
           {visibleProducts.length === 0 && (
             <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', gridColumn: '1 / -1' }}>
-              {lang==='fr'?'Aucun produit ne correspond.':'No matching products.'}
+              {lang === 'fr' ? 'Aucun produit ne correspond.' : 'No matching products.'}
             </p>
           )}
         </div>
@@ -175,21 +219,14 @@ export default function POSTerminal({ products }: { products: Product[] }) {
 
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1.25rem', position: 'sticky', top: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-          <p style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>{lang==='fr'?'Panier':'Cart'}</p>
-          <span style={{
-            fontSize: '12px', background: 'var(--color-bg)', color: 'var(--color-text-secondary)',
-            borderRadius: '999px', padding: '2px 10px',
-          }}>
-            {cart.length}
-          </span>
+          <p style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>{lang === 'fr' ? 'Panier' : 'Cart'}</p>
+          <span style={{ fontSize: '12px', background: 'var(--color-bg)', color: 'var(--color-text-secondary)', borderRadius: '999px', padding: '2px 10px' }}>{cart.length}</span>
         </div>
 
         {success && (
           <p style={{ fontSize: '12px', color: 'var(--color-success-text)', background: 'var(--color-success-bg)', padding: '8px 10px', borderRadius: 'var(--radius-sm)', marginBottom: '10px' }}>
-            ✓ {success.total.toLocaleString(lang==='fr'?'fr-FR':'en-US')} FCFA {lang==='fr'?'encaissés.':'collected.'}{' '}
-            <a href={`/print/pos-sales/${success.saleId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)', fontWeight: 500 }}>
-              Reçu →
-            </a>
+            ✓ {success.total.toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US')} FCFA {lang === 'fr' ? 'encaissés.' : 'collected.'}{' '}
+            <a href={`/print/pos-sales/${success.saleId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)', fontWeight: 500 }}>Reçu →</a>
           </p>
         )}
 
@@ -218,42 +255,17 @@ export default function POSTerminal({ products }: { products: Product[] }) {
 
         <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '12px', marginBottom: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600 }}>{lang==='fr'?'Montant à payer':'Amount due'}</span>
-            <span style={{ fontSize: '20px', fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>
-              {total.toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US')} FCFA
-            </span>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>{lang === 'fr' ? 'Montant à payer' : 'Amount due'}</span>
+            <span style={{ fontSize: '20px', fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>{total.toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US')} FCFA</span>
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-          <button onClick={() => setPaymentMethod('cash')} style={{
-            padding: '10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '13px',
-            border: paymentMethod === 'cash' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
-            background: paymentMethod === 'cash' ? 'var(--color-success-bg)' : 'var(--color-surface)',
-            color: 'var(--color-text-primary)',
-          }}>
-            💵 Comptant
-          </button>
-          <button onClick={() => setPaymentMethod('momo')} style={{
-            padding: '10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '13px',
-            border: paymentMethod === 'momo' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
-            background: paymentMethod === 'momo' ? 'var(--color-success-bg)' : 'var(--color-surface)',
-            color: 'var(--color-text-primary)',
-          }}>
-            📱 Mobile Money
-          </button>
+          <button onClick={() => setPaymentMethod('cash')} style={{ padding: '10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '13px', border: paymentMethod === 'cash' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)', background: paymentMethod === 'cash' ? 'var(--color-success-bg)' : 'var(--color-surface)', color: 'var(--color-text-primary)' }}>💵 Comptant</button>
+          <button onClick={() => setPaymentMethod('momo')} style={{ padding: '10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '13px', border: paymentMethod === 'momo' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)', background: paymentMethod === 'momo' ? 'var(--color-success-bg)' : 'var(--color-surface)', color: 'var(--color-text-primary)' }}>📱 Mobile Money</button>
         </div>
 
-        <button
-          onClick={handleCheckout}
-          disabled={cart.length === 0 || submitting}
-          style={{
-            width: '100%', fontSize: '14px', fontWeight: 600, padding: '13px', borderRadius: 'var(--radius-sm)',
-            border: 'none', background: cart.length === 0 ? 'var(--color-border)' : 'var(--color-accent)',
-            color: cart.length === 0 ? 'var(--color-text-secondary)' : 'var(--color-accent-text-on)',
-            cursor: cart.length === 0 || submitting ? 'not-allowed' : 'pointer',
-          }}
-        >
+        <button onClick={handleCheckout} disabled={cart.length === 0 || submitting} style={{ width: '100%', fontSize: '14px', fontWeight: 600, padding: '13px', borderRadius: 'var(--radius-sm)', border: 'none', background: cart.length === 0 ? 'var(--color-border)' : 'var(--color-accent)', color: cart.length === 0 ? 'var(--color-text-secondary)' : 'var(--color-accent-text-on)', cursor: cart.length === 0 || submitting ? 'not-allowed' : 'pointer' }}>
           {submitting ? 'Traitement…' : '✓ Finaliser la vente'}
         </button>
       </div>
