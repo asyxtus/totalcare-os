@@ -1,6 +1,7 @@
 // app/(authenticated)/layout.tsx
 import { getCurrentStaff } from '@/lib/auth/getCurrentStaff'
 import AppShell from '@/components/AppShell'
+import ConsultationFollowupScheduler from '@/components/ConsultationFollowupScheduler'
 
 export default async function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const staff = await getCurrentStaff() // redirects to /login internally if not authenticated
@@ -22,6 +23,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
       availableRoles={staff.availableRoles}
       lang={staff.preferredLanguage}
     >
+      <ConsultationFollowupScheduler />
       {children}
     </AppShell>
   )
