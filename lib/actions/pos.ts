@@ -10,16 +10,95 @@ type PosCartLine = {
   quantity: number
 }
 
+export type PosStockDiagnostic = {
+  productName: string
+  requested: number
+  sellable: number
+  physical: number
+  reason: 'expired' | 'quarantined' | 'inactive_batches' | 'insufficient'
+  expiryLots?: string
+}
+
+/** Convert the authoritative database stock message into UI-friendly data. */
+function parsePosStockDiagnostic(message: string): PosStockDiagnostic | null {
+  const expired = message.match(
+    /Stock insuffisant pour (.+?) : demandé (\d+), stock vendable 0\. Stock physique (\d+), dont (\d+) unité\(s\) expirée\(s\)\. Lots expirés : (.+)$/i,
+  )
+  if (expired) {
+    return {
+      productName: expired[1].trim(),
+      requested: Number(expired[2]),
+      sellable: 0,
+      physical: Number(expired[3]),
+      reason: 'expired',
+      expiryLots: expired[5].trim(),
+    }
+  }
+
+  const quarantined = message.match(
+    /Stock insuffisant pour (.+?) : demandé (\d+), stock vendable 0\. Stock physique (\d+), dont (\d+) unité\(s\) en quarantaine\. Lots en quarantaine : (.+)$/i,
+  )
+  if (quarantined) {
+    return {
+      productName: quarantined[1].trim(),
+      requested: Number(quarantined[2]),
+      sellable: 0,
+      physical: Number(quarantined[3]),
+      reason: 'quarantined',
+      expiryLots: quarantined[5].trim(),
+    }
+  }
+
+  const mixed = message.match(
+    /Stock vendable insuffisant pour (.+?) : demandé (\d+), vendable (\d+)\. Stock physique (\d+), dont (\d+) unité\(s\) expirée\(s\)\. Lots expirés : (.+)$/i,
+  )
+  if (mixed) {
+    return {
+      productName: mixed[1].trim(),
+      requested: Number(mixed[2]),
+      sellable: Number(mixed[3]),
+      physical: Number(mixed[4]),
+      reason: 'expired',
+      expiryLots: mixed[6].trim(),
+    }
+  }
+
+  const inactive = message.match(
+    /Stock vendable insuffisant pour (.+?) : demandé (\d+), vendable (\d+)\. Stock physique, avec (\d+) unité\(s\) dans des lots non actifs/i,
+  )
+  if (inactive) {
+    return {
+      productName: inactive[1].trim(),
+      requested: Number(inactive[2]),
+      sellable: Number(inactive[3]),
+      physical: Number(inactive[3]) + Number(inactive[4]),
+      reason: 'inactive_batches',
+    }
+  }
+
+  const insufficient = message.match(
+    /Stock réellement insuffisant pour (.+?) : demandé (\d+), stock vendable (\d+), stock physique (\d+)/i,
+  )
+  if (insufficient) {
+    return {
+      productName: insufficient[1].trim(),
+      requested: Number(insufficient[2]),
+      sellable: Number(insufficient[3]),
+      physical: Number(insufficient[4]),
+      reason: 'insufficient',
+    }
+  }
+
+  return null
+}
+
 /**
  * POS-specific checkout action.
  *
- * The whole server-side checkout path is wrapped so that failures from
- * authentication/staff lookup, Supabase RPC execution, or path revalidation
- * cannot collapse into the generic "Impossible de finaliser la vente."
- *
- * This is intentionally diagnostic-friendly while we trace the POS checkout
- * failure. The database function record_pos_sale() remains the authoritative
- * validation/transaction boundary.
+ * The database function record_pos_sale() remains the authoritative
+ * validation/transaction boundary. This action preserves its detailed
+ * diagnostic and additionally returns structured stock information when the
+ * failure is a stock-availability problem.
  */
 export async function checkoutPosSaleDetailed(formData: FormData) {
   let diagnosticContext: Record<string, unknown> = {}
@@ -51,7 +130,6 @@ export async function checkoutPosSaleDetailed(formData: FormData) {
     }
 
     diagnosticContext.cart = cart
-
     console.info('[POS CHECKOUT] Starting checkout', diagnosticContext)
 
     const { data: saleId, error } = await supabase.rpc('record_pos_sale', {
@@ -76,6 +154,7 @@ export async function checkoutPosSaleDetailed(formData: FormData) {
 
       console.error('[POS CHECKOUT] record_pos_sale failed', rpcDiagnostic)
 
+      const stockDiagnostic = parsePosStockDiagnostic(error.message ?? '')
       const parts = [
         error.message,
         error.code ? `Code: ${error.code}` : null,
@@ -85,6 +164,7 @@ export async function checkoutPosSaleDetailed(formData: FormData) {
 
       return {
         error: parts.join(' | ') || 'Impossible de finaliser la vente.',
+        stockDiagnostic,
       }
     }
 
@@ -100,8 +180,6 @@ export async function checkoutPosSaleDetailed(formData: FormData) {
       revalidatePath('/pharmacy/inventory')
       revalidatePath('/pharmacy/pos/sales')
     } catch (revalidateError) {
-      // A successful database sale must not be reported as a failed sale just
-      // because cache invalidation failed after the transaction committed.
       console.error('[POS CHECKOUT] Revalidation failed after successful sale', {
         ...diagnosticContext,
         saleId,
@@ -129,10 +207,7 @@ export async function checkoutPosSaleDetailed(formData: FormData) {
     console.error('[POS CHECKOUT] Unexpected server action failure', unexpectedDiagnostic)
 
     const message = err instanceof Error ? err.message : String(err)
-
-    return {
-      error: message || 'Impossible de finaliser la vente.',
-    }
+    return { error: message || 'Impossible de finaliser la vente.' }
   }
 }
 
