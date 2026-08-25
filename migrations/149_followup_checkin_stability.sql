@@ -1,15 +1,15 @@
 -- ============================================================================
 -- MIGRATION 149: FOLLOW-UP CHECK-IN STABILITY
 --
--- The earlier appointment-aware registration function could fail when an
--- appointment had no fee entitlement because PL/pgSQL RECORD fields must not
--- be read before the RECORD has been assigned. This replacement uses an
--- explicit boolean guard and keeps ordinary appointments/walk-ins working.
+-- Replaces the stale appointment-aware registration RPC. The previous version
+-- could dereference v_entitlement when no entitlement existed, producing:
+--   record "v_entitlement" is not assigned yet
+--
+-- This migration is intentionally rerunnable. CREATE OR REPLACE avoids a
+-- dependency problem caused by dropping an RPC that may already be referenced.
 -- ============================================================================
 
-drop function if exists public.register_visit_with_charge(uuid, uuid, text, uuid, uuid, uuid);
-
-create function public.register_visit_with_charge(
+create or replace function public.register_visit_with_charge(
   p_clinic_id uuid,
   p_patient_id uuid,
   p_visit_reason text,
@@ -18,7 +18,9 @@ create function public.register_visit_with_charge(
   p_appointment_id uuid default null
 )
 returns table (visit_id uuid, service_charge_id uuid, amount_xaf numeric)
-language plpgsql security definer set search_path = public
+language plpgsql
+security definer
+set search_path = public
 as $$
 declare
   v_visit_id uuid;
@@ -74,6 +76,8 @@ begin
       raise exception 'The selected consultation type does not match the appointment';
     end if;
 
+    -- Only inspect the entitlement after a real entitlement row has been
+    -- selected. Ordinary appointments may legitimately have none.
     if v_appointment.fee_entitlement_id is not null then
       select e.* into v_entitlement
       from appointment_fee_entitlements e
