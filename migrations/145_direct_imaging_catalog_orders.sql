@@ -1,25 +1,18 @@
 -- ============================================================================
--- MIGRATION 145: DIRECT IMAGING
+-- MIGRATION 145: DIRECT IMAGING CATALOGUE + ORDERS + FINANCIAL INTEGRATION
 --
 -- Phase 2 of the direct ancillary-services architecture.
 --
--- A patient may arrive specifically for imaging without passing through a
--- consultation. Imaging therefore uses the same encounter/financial pattern
--- established by migration 144 for direct laboratory services:
---
+-- Direct imaging follows the same encounter/financial pattern as migration 144:
 --   patient -> visit(encounter_type=direct_imaging)
 --           -> imaging_order -> imaging_order_items
 --           -> service_charges(category=procedure) -> invoice -> cashier
 --
--- There is deliberately NO consultation charge and no dependency on a
--- clinician consultation visit.
---
--- The imaging catalogue is clinic-scoped because prices, availability and
--- operational instructions can differ between clinics.
+-- No consultation is required and no consultation charge is created.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 1. Imaging catalogue
+-- 1. Catalogue
 -- ----------------------------------------------------------------------------
 create table if not exists public.imaging_catalog (
   id uuid primary key default gen_random_uuid(),
@@ -42,7 +35,7 @@ create index if not exists idx_imaging_catalog_clinic_active
   on public.imaging_catalog(clinic_id, is_active, modality, name_en);
 
 -- ----------------------------------------------------------------------------
--- 2. Imaging orders and billable items
+-- 2. Orders and billable examination items
 -- ----------------------------------------------------------------------------
 create table if not exists public.imaging_orders (
   id uuid primary key default gen_random_uuid(),
@@ -90,7 +83,9 @@ create index if not exists idx_imaging_order_items_clinic_status
 create index if not exists idx_imaging_order_items_catalog
   on public.imaging_order_items(imaging_catalog_id);
 
--- Keep the visit encounter classification aligned with migration 144.
+-- Migration 144 introduced this shared encounter classification. Repeating the
+-- definition with IF NOT EXISTS/drop-and-recreate keeps migration 145 safe when
+-- deployed to a database where 144 has already been applied.
 alter table public.visits
   add column if not exists encounter_type text not null default 'consultation';
 
@@ -105,7 +100,7 @@ create index if not exists idx_visits_clinic_encounter_type
   on public.visits(clinic_id, encounter_type, created_at desc);
 
 -- ----------------------------------------------------------------------------
--- 3. Timestamp helper
+-- 3. updated_at trigger
 -- ----------------------------------------------------------------------------
 create or replace function public.touch_imaging_catalog_updated_at()
 returns trigger
@@ -139,14 +134,8 @@ drop policy if exists imaging_catalog_admin_write on public.imaging_catalog;
 create policy imaging_catalog_admin_write
   on public.imaging_catalog
   for all
-  using (
-    clinic_id = current_staff_clinic_id()
-    and current_staff_role() = 'admin'
-  )
-  with check (
-    clinic_id = current_staff_clinic_id()
-    and current_staff_role() = 'admin'
-  );
+  using (clinic_id = current_staff_clinic_id() and current_staff_role() = 'admin')
+  with check (clinic_id = current_staff_clinic_id() and current_staff_role() = 'admin');
 
 drop policy if exists imaging_orders_select on public.imaging_orders;
 create policy imaging_orders_select
@@ -174,13 +163,12 @@ create policy imaging_order_items_staff_update
   using (clinic_id = current_staff_clinic_id())
   with check (clinic_id = current_staff_clinic_id());
 
--- Inserts are intentionally performed through the SECURITY DEFINER
--- registration function below so a caller cannot forge clinic/staff IDs.
+-- Creation is only through the SECURITY DEFINER functions below.
 revoke insert on public.imaging_orders from authenticated;
 revoke insert on public.imaging_order_items from authenticated;
 
 -- ----------------------------------------------------------------------------
--- 5. Admin catalogue helpers
+-- 5. Admin catalogue functions
 -- ----------------------------------------------------------------------------
 create or replace function public.create_imaging_catalog_item(
   p_clinic_id uuid,
@@ -205,9 +193,7 @@ declare
 begin
   select coalesce(active_role, role) into v_role
   from staff
-  where id = p_created_by
-    and clinic_id = p_clinic_id
-    and is_active = true;
+  where id = p_created_by and clinic_id = p_clinic_id and is_active = true;
 
   if v_role is null then
     raise exception 'Staff member not found or inactive in this clinic';
@@ -215,7 +201,6 @@ begin
   if v_role <> 'admin' then
     raise exception 'Only an admin can create an imaging catalogue item';
   end if;
-
   if nullif(trim(p_code), '') is null then
     raise exception 'Imaging service code is required';
   end if;
@@ -236,27 +221,19 @@ begin
     clinic_id, code, name_en, name_fr, modality, price_xaf,
     turnaround_minutes, preparation_instructions, clinical_notes
   ) values (
-    p_clinic_id,
-    upper(trim(p_code)),
-    trim(p_name_en),
-    trim(p_name_fr),
-    trim(p_modality),
-    p_price_xaf,
-    p_turnaround_minutes,
+    p_clinic_id, upper(trim(p_code)), trim(p_name_en), trim(p_name_fr),
+    trim(p_modality), p_price_xaf, p_turnaround_minutes,
     nullif(trim(p_preparation_instructions), ''),
     nullif(trim(p_clinical_notes), '')
   )
   returning id into v_id;
 
-  insert into audit_log (
-    clinic_id, staff_id, action, entity_type, entity_id, details
-  ) values (
+  insert into audit_log (clinic_id, staff_id, action, entity_type, entity_id, details)
+  values (
     p_clinic_id, p_created_by, 'pricing.imaging_created', 'imaging_catalog', v_id,
     jsonb_build_object(
-      'code', upper(trim(p_code)),
-      'name_en', trim(p_name_en),
-      'name_fr', trim(p_name_fr),
-      'modality', trim(p_modality),
+      'code', upper(trim(p_code)), 'name_en', trim(p_name_en),
+      'name_fr', trim(p_name_fr), 'modality', trim(p_modality),
       'price_xaf', p_price_xaf
     )
   );
@@ -301,9 +278,7 @@ begin
     raise exception 'Imaging price must be zero or greater';
   end if;
 
-  update imaging_catalog
-  set price_xaf = p_price_xaf
-  where id = p_id;
+  update imaging_catalog set price_xaf = p_price_xaf where id = p_id;
 
   insert into audit_log (clinic_id, staff_id, action, entity_type, entity_id, details)
   values (
@@ -347,12 +322,9 @@ begin
 
   insert into audit_log (clinic_id, staff_id, action, entity_type, entity_id, details)
   values (
-    v_clinic_id,
-    p_updated_by,
+    v_clinic_id, p_updated_by,
     case when p_make_active then 'pricing.imaging_reactivated' else 'pricing.imaging_deactivated' end,
-    'imaging_catalog',
-    p_id,
-    '{}'::jsonb
+    'imaging_catalog', p_id, '{}'::jsonb
   );
 end;
 $$;
@@ -361,7 +333,7 @@ revoke all on function public.toggle_imaging_catalog_active(uuid,uuid,boolean) f
 grant execute on function public.toggle_imaging_catalog_active(uuid,uuid,boolean) to authenticated;
 
 -- ----------------------------------------------------------------------------
--- 6. Direct imaging registration + financial transaction
+-- 6. Direct imaging registration
 -- ----------------------------------------------------------------------------
 create or replace function public.create_direct_imaging_visit(
   p_clinic_id uuid,
@@ -399,21 +371,16 @@ declare
 begin
   select coalesce(active_role, role) into v_role
   from staff
-  where id = p_registered_by
-    and clinic_id = p_clinic_id
-    and is_active = true;
+  where id = p_registered_by and clinic_id = p_clinic_id and is_active = true;
 
   if v_role is null then
     raise exception 'Staff member not found or inactive in this clinic';
   end if;
-
   if v_role not in ('admin', 'receptionist', 'billing_clerk', 'doctor') then
     raise exception 'Staff role % cannot register a direct imaging visit', v_role;
   end if;
 
-  if not exists (
-    select 1 from patients where id = p_patient_id and clinic_id = p_clinic_id
-  ) then
+  if not exists (select 1 from patients where id = p_patient_id and clinic_id = p_clinic_id) then
     raise exception 'Patient does not belong to this clinic';
   end if;
 
@@ -421,7 +388,6 @@ begin
     raise exception 'At least one imaging service is required';
   end if;
 
-  -- Do not silently create a second active encounter for the same patient.
   select id into v_existing_visit
   from visits
   where patient_id = p_patient_id
@@ -435,17 +401,16 @@ begin
     raise exception 'Patient already has an active visit (%). Use the existing visit instead of opening a second visit.', v_existing_visit;
   end if;
 
-  -- Validate every item before creating the encounter or any financial row.
+  -- Validate the complete cart before creating the encounter or any financial row.
   for v_item in select * from jsonb_array_elements(p_items)
   loop
     v_catalog_id := nullif(v_item->>'imaging_catalog_id', '')::uuid;
-
     if v_catalog_id is null then
       raise exception 'Every imaging item must contain imaging_catalog_id';
     end if;
 
     select clinic_id, price_xaf, name_en
-    into v_catalog_clinic, v_price, v_name
+      into v_catalog_clinic, v_price, v_name
     from imaging_catalog
     where id = v_catalog_id
       and clinic_id = p_clinic_id
@@ -454,7 +419,6 @@ begin
     if v_catalog_clinic is null then
       raise exception 'Imaging service % is not active or not configured for this clinic', v_catalog_id;
     end if;
-
     if v_price is null or v_price < 0 then
       raise exception 'Imaging service % has an invalid price', v_catalog_id;
     end if;
@@ -463,26 +427,18 @@ begin
   insert into visits (
     clinic_id, patient_id, visit_reason, status, registered_by, encounter_type
   ) values (
-    p_clinic_id,
-    p_patient_id,
+    p_clinic_id, p_patient_id,
     coalesce(nullif(trim(p_reason), ''), 'Direct imaging services'),
-    'waiting_lab',
-    p_registered_by,
-    'direct_imaging'
-  )
-  returning id into v_visit_id;
+    'waiting_lab', p_registered_by, 'direct_imaging'
+  ) returning id into v_visit_id;
 
   insert into imaging_orders (
     clinic_id, visit_id, ordered_by, status, clinical_indication, notes
   ) values (
-    p_clinic_id,
-    v_visit_id,
-    p_registered_by,
-    'ordered',
+    p_clinic_id, v_visit_id, p_registered_by, 'ordered',
     nullif(trim(p_clinical_indication), ''),
     'Direct imaging visit — no consultation'
-  )
-  returning id into v_order_id;
+  ) returning id into v_order_id;
 
   for v_item in select * from jsonb_array_elements(p_items)
   loop
@@ -490,21 +446,11 @@ begin
 
     select price_xaf, name_en into v_price, v_name
     from imaging_catalog
-    where id = v_catalog_id
-      and clinic_id = p_clinic_id
-      and is_active = true;
+    where id = v_catalog_id and clinic_id = p_clinic_id and is_active = true;
 
-    -- Imaging is a technical/procedure charge, not a consultation or lab
-    -- charge. This keeps it visible in the same cashier/invoice pipeline.
     v_charge_id := create_service_charge(
-      p_clinic_id,
-      p_patient_id,
-      v_visit_id,
-      null,
-      'procedure',
-      v_name,
-      v_price,
-      p_registered_by
+      p_clinic_id, p_patient_id, v_visit_id, null,
+      'procedure', v_name, v_price, p_registered_by
     );
 
     v_charge_ids := array_append(v_charge_ids, v_charge_id);
@@ -519,14 +465,9 @@ begin
 
   v_invoice_id := open_invoice_for_charges(v_charge_ids, p_registered_by);
 
-  insert into audit_log (
-    clinic_id, staff_id, action, entity_type, entity_id, details
-  ) values (
-    p_clinic_id,
-    p_registered_by,
-    'imaging.direct_visit_created',
-    'visit',
-    v_visit_id,
+  insert into audit_log (clinic_id, staff_id, action, entity_type, entity_id, details)
+  values (
+    p_clinic_id, p_registered_by, 'imaging.direct_visit_created', 'visit', v_visit_id,
     jsonb_build_object(
       'imaging_order_id', v_order_id,
       'invoice_id', v_invoice_id,
@@ -545,8 +486,66 @@ revoke all on function public.create_direct_imaging_visit(uuid,uuid,uuid,jsonb,t
 grant execute on function public.create_direct_imaging_visit(uuid,uuid,uuid,jsonb,text,text) to authenticated;
 
 -- ----------------------------------------------------------------------------
--- 7. Imaging workflow: mark paid/started/completed and write report
+-- 7. Payment state + examination completion
 -- ----------------------------------------------------------------------------
+create or replace function public.set_imaging_order_paid(
+  p_imaging_order_id uuid,
+  p_staff_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_clinic_id uuid;
+  v_role staff_role;
+  v_has_unpaid boolean;
+begin
+  select clinic_id into v_clinic_id
+  from imaging_orders where id = p_imaging_order_id for update;
+  if v_clinic_id is null then
+    raise exception 'Imaging order not found';
+  end if;
+
+  select coalesce(active_role, role) into v_role
+  from staff
+  where id = p_staff_id and clinic_id = v_clinic_id and is_active = true;
+
+  if v_role is null then
+    raise exception 'Staff member not found or inactive in this clinic';
+  end if;
+  if v_role not in ('admin','receptionist','billing_clerk','doctor') then
+    raise exception 'Staff role % cannot mark imaging as paid', v_role;
+  end if;
+
+  select exists (
+    select 1
+    from imaging_order_items ioi
+    join service_charges sc on sc.id = ioi.service_charge_id
+    where ioi.imaging_order_id = p_imaging_order_id
+      and sc.status in ('pending','partial')
+      and coalesce(sc.patient_portion_xaf, sc.amount_xaf) - sc.amount_paid_xaf > 0
+  ) into v_has_unpaid;
+
+  if v_has_unpaid then
+    raise exception 'Imaging cannot be marked paid while one or more charges remain unpaid';
+  end if;
+
+  update imaging_orders
+  set status = case when status = 'completed' then status else 'paid' end
+  where id = p_imaging_order_id;
+
+  update imaging_order_items
+  set status = case when status = 'completed' then status else 'paid' end
+  where imaging_order_id = p_imaging_order_id
+    and status not in ('completed','cancelled');
+end;
+$$;
+
+revoke all on function public.set_imaging_order_paid(uuid,uuid) from public;
+grant execute on function public.set_imaging_order_paid(uuid,uuid) to authenticated;
+
 create or replace function public.complete_imaging_order_item(
   p_imaging_order_item_id uuid,
   p_staff_id uuid,
@@ -565,12 +564,8 @@ declare
   v_encounter_type text;
 begin
   select
-    ioi.id,
-    ioi.clinic_id,
-    ioi.imaging_order_id,
-    io.visit_id,
-    ioi.status,
-    io.status as order_status
+    ioi.id, ioi.clinic_id, ioi.imaging_order_id,
+    io.visit_id, ioi.status, io.status as order_status
   into v_item
   from imaging_order_items ioi
   join imaging_orders io on io.id = ioi.imaging_order_id
@@ -583,9 +578,7 @@ begin
 
   select coalesce(active_role, role) into v_role
   from staff
-  where id = p_staff_id
-    and clinic_id = v_item.clinic_id
-    and is_active = true;
+  where id = p_staff_id and clinic_id = v_item.clinic_id and is_active = true;
 
   if v_role is null then
     raise exception 'Staff member not found or inactive in this clinic';
@@ -593,11 +586,9 @@ begin
   if v_role not in ('admin','doctor','lab_technician') then
     raise exception 'Staff role % cannot complete an imaging examination', v_role;
   end if;
-
   if v_item.status = 'cancelled' then
     raise exception 'Cannot complete a cancelled imaging item';
   end if;
-
   if nullif(trim(coalesce(p_report_text, '')), '') is null then
     raise exception 'An imaging report is required before completing the examination';
   end if;
@@ -627,14 +618,10 @@ begin
     if v_visit_status = 'waiting_lab' and v_encounter_type = 'direct_imaging' then
       update visits set status = 'discharged' where id = v_item.visit_id;
 
-      insert into audit_log (
-        clinic_id, staff_id, action, entity_type, entity_id, details
-      ) values (
-        v_item.clinic_id,
-        p_staff_id,
-        'visit.direct_imaging_completed',
-        'visit',
-        v_item.visit_id,
+      insert into audit_log (clinic_id, staff_id, action, entity_type, entity_id, details)
+      values (
+        v_item.clinic_id, p_staff_id, 'visit.direct_imaging_completed',
+        'visit', v_item.visit_id,
         jsonb_build_object('imaging_order_id', v_item.imaging_order_id)
       );
     end if;
@@ -645,64 +632,8 @@ $$;
 revoke all on function public.complete_imaging_order_item(uuid,uuid,text) from public;
 grant execute on function public.complete_imaging_order_item(uuid,uuid,text) to authenticated;
 
-create or replace function public.set_imaging_order_paid(
-  p_imaging_order_id uuid,
-  p_staff_id uuid
-)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_clinic_id uuid;
-  v_role staff_role;
-  v_has_unpaid boolean;
-begin
-  select clinic_id into v_clinic_id
-  from imaging_orders where id = p_imaging_order_id for update;
-  if v_clinic_id is null then
-    raise exception 'Imaging order not found';
-  end if;
-
-  select coalesce(active_role, role) into v_role
-  from staff where id = p_staff_id and clinic_id = v_clinic_id and is_active = true;
-  if v_role is null then
-    raise exception 'Staff member not found or inactive in this clinic';
-  end if;
-  if v_role not in ('admin','receptionist','billing_clerk','doctor') then
-    raise exception 'Staff role % cannot mark imaging as paid', v_role;
-  end if;
-
-  select exists (
-    select 1
-    from imaging_order_items ioi
-    left join service_charges sc on sc.id = ioi.service_charge_id
-    where ioi.imaging_order_id = p_imaging_order_id
-      and coalesce(sc.balance_xaf, sc.amount_xaf) > 0
-      and coalesce(sc.status, 'open') not in ('paid','cancelled')
-  ) into v_has_unpaid;
-
-  if v_has_unpaid then
-    raise exception 'Imaging cannot be marked paid while one or more charges remain unpaid';
-  end if;
-
-  update imaging_orders
-  set status = case when status = 'completed' then status else 'paid' end
-  where id = p_imaging_order_id;
-
-  update imaging_order_items
-  set status = case when status = 'completed' then status else 'paid' end
-  where imaging_order_id = p_imaging_order_id
-    and status not in ('completed','cancelled');
-end;
-$$;
-
-revoke all on function public.set_imaging_order_paid(uuid,uuid) from public;
-grant execute on function public.set_imaging_order_paid(uuid,uuid) to authenticated;
-
 -- ----------------------------------------------------------------------------
--- 8. Reporting view: imaging work queue with financial state
+-- 8. Reporting view: work queue + financial state
 -- ----------------------------------------------------------------------------
 create or replace view public.imaging_work_queue as
 select
@@ -726,7 +657,10 @@ select
   ioi.report_text,
   sc.id as service_charge_id,
   sc.amount_xaf as charge_amount_xaf,
-  sc.balance_xaf as charge_balance_xaf,
+  greatest(
+    coalesce(sc.patient_portion_xaf, sc.amount_xaf) - sc.amount_paid_xaf,
+    0
+  ) as charge_balance_xaf,
   sc.status as charge_status
 from imaging_order_items ioi
 join imaging_orders io on io.id = ioi.imaging_order_id
@@ -734,9 +668,6 @@ join visits v on v.id = io.visit_id
 join patients p on p.id = v.patient_id
 join imaging_catalog ic on ic.id = ioi.imaging_catalog_id
 left join service_charges sc on sc.id = ioi.service_charge_id;
-
--- Views inherit underlying RLS for the base tables in normal authenticated
--- access. No direct INSERT/UPDATE path is exposed through the view.
 
 comment on table public.imaging_catalog is
   'Clinic-scoped imaging/radiology catalogue with price and operational metadata.';
