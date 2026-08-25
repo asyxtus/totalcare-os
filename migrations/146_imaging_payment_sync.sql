@@ -1,10 +1,5 @@
 -- ============================================================================
 -- MIGRATION 146: IMAGING PAYMENT SYNCHRONIZATION
---
--- Once the cashier fully pays every service charge belonging to an imaging
--- order, the imaging order/items automatically become paid. This removes a
--- manual synchronization step and keeps the imaging work queue aligned with
--- the financial ledger.
 -- ============================================================================
 
 create or replace function public.sync_imaging_order_payment()
@@ -33,7 +28,7 @@ begin
     where ioi.imaging_order_id = v_order_id
       and ioi.status <> 'cancelled'
       and greatest(
-        coalesce(sc.patient_portion_xaf, sc.amount_xaf) - sc.amount_paid_xaf,
+        coalesce(sc.patient_portion_xaf, sc.amount_xaf, 0) - coalesce(sc.amount_paid_xaf, 0),
         0
       ) > 0
   ) into v_unpaid;
