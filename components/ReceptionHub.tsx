@@ -31,16 +31,29 @@ export default function ReceptionHub({ initialTab, queueProps, appointmentsProps
     { id: 'reminders', label: (lang === 'fr' ? 'Rappels' : 'Reminders') + (pendingCalls > 0 ? ` (${pendingCalls})` : ''), icon: PhoneCall },
   ]
 
+  const shortcutStyle: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 14px',
+    border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+    background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer',
+    fontSize: 12, fontWeight: 600, minHeight: 42,
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
         <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', margin: 0 }}>
-          {lang === 'fr' ? 'Accès rapide aux services sans consultation' : 'Quick access to services without a consultation'}
+          {lang === 'fr' ? 'Accès rapide aux services sans consultation' : 'Quick access to services without consultation'}
         </p>
-        <button type="button" onClick={() => setTab('direct_imaging')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 12px', border: '1px solid var(--color-accent)', borderRadius: 'var(--radius-sm)', background: 'var(--color-success-bg)', color: 'var(--color-accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-          <ScanLine size={14} aria-hidden />
-          {lang === 'fr' ? 'Nouvelle imagerie directe' : 'New direct imaging'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => setTab('direct_lab')} style={shortcutStyle}>
+            <FlaskConical size={15} aria-hidden />
+            {lang === 'fr' ? 'Nouveau laboratoire direct' : 'New direct laboratory'}
+          </button>
+          <button type="button" onClick={() => setTab('direct_imaging')} style={{ ...shortcutStyle, borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-success-bg)' }}>
+            <ScanLine size={15} aria-hidden />
+            {lang === 'fr' ? 'Nouvelle imagerie directe' : 'New direct imaging'}
+          </button>
+        </div>
       </div>
 
       <TabBar tabs={tabs} active={tab} onChange={setTab} className="reception-tabs" style={{ overflowX: 'visible', flexWrap: 'wrap' }} />
