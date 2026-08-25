@@ -5,15 +5,30 @@
 -- entitlement record explicitly so ordinary walk-in registrations never try
 -- to read an unassigned RECORD variable.
 --
--- IMPORTANT: Some installations may have attempted to run this migration
--- directly before 147 was successfully applied. The prerequisite DDL below is
--- therefore idempotent. If 147 already ran, these statements are no-ops.
+-- Some installations may have attempted to run this migration directly
+-- before 147 was successfully applied. The prerequisite DDL below is
+-- idempotent, so it is safe when 147 already exists.
 -- ============================================================================
 
--- ---------------------------------------------------------------------------
+-- Ensure the policy table referenced by appointment_fee_entitlements exists.
+create table if not exists public.consultation_followup_policies (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  name text not null,
+  min_days_after_consultation integer not null default 0
+    check (min_days_after_consultation >= 0),
+  max_days_after_consultation integer not null
+    check (max_days_after_consultation >= min_days_after_consultation),
+  patient_fee_xaf numeric(12,2) not null check (patient_fee_xaf >= 0),
+  is_active boolean not null default true,
+  created_by uuid references public.staff(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (clinic_id, name)
+);
+
 -- Ensure the 147 entitlement schema exists before the registration function
--- can reference it. This makes 148 safe to rerun after a partial migration.
--- ---------------------------------------------------------------------------
+-- can reference it. These statements are no-ops on a database where 147 ran.
 create table if not exists public.appointment_fee_entitlements (
   id uuid primary key default gen_random_uuid(),
   clinic_id uuid not null references public.clinics(id) on delete cascade,
@@ -51,11 +66,17 @@ alter table public.appointments
   add column if not exists source_consultation_id uuid
     references public.consultations(id) on delete set null;
 
+create index if not exists idx_followup_policies_clinic_window
+  on public.consultation_followup_policies
+  (clinic_id, is_active, min_days_after_consultation, max_days_after_consultation);
+
 create index if not exists idx_fee_entitlements_patient_status
-  on public.appointment_fee_entitlements (clinic_id, patient_id, status, valid_from, valid_until);
+  on public.appointment_fee_entitlements
+  (clinic_id, patient_id, status, valid_from, valid_until);
 
 create index if not exists idx_fee_entitlements_source_encounter
-  on public.appointment_fee_entitlements (source_visit_id, source_consultation_id);
+  on public.appointment_fee_entitlements
+  (source_visit_id, source_consultation_id);
 
 create index if not exists idx_appointments_fee_entitlement
   on public.appointments (fee_entitlement_id)
@@ -65,6 +86,7 @@ create index if not exists idx_appointments_source_visit
   on public.appointments (source_visit_id)
   where source_visit_id is not null;
 
+alter table public.consultation_followup_policies enable row level security;
 alter table public.appointment_fee_entitlements enable row level security;
 
 -- ---------------------------------------------------------------------------
