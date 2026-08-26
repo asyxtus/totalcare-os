@@ -1,12 +1,16 @@
 -- ============================================================================
 -- MIGRATION 149: FOLLOW-UP CHECK-IN STABILITY
 --
--- Replaces the stale appointment-aware registration RPC. The previous version
--- could dereference v_entitlement when no entitlement existed, producing:
+-- Replaces the appointment-aware registration RPC.
+--
+-- Important: PL/pgSQL RECORD variables remain unassigned when SELECT INTO
+-- returns zero rows. The previous version checked v_appointment.id and
+-- v_entitlement.id directly, which could itself raise:
 --   record "v_entitlement" is not assigned yet
 --
--- This migration is intentionally rerunnable. CREATE OR REPLACE avoids a
--- dependency problem caused by dropping an RPC that may already be referenced.
+-- This version uses FOUND immediately after each SELECT INTO and therefore
+-- handles missing/invalid appointment or entitlement rows deterministically.
+-- It is safe to rerun with CREATE OR REPLACE FUNCTION.
 -- ============================================================================
 
 create or replace function public.register_visit_with_charge(
@@ -31,6 +35,8 @@ declare
   v_entitlement record;
   v_patient_fee numeric(10,2);
   v_has_entitlement boolean := false;
+  v_appointment_found boolean := false;
+  v_entitlement_found boolean := false;
 begin
   if not exists (
     select 1 from staff s
@@ -63,7 +69,9 @@ begin
       and a.status = 'scheduled'
     for update;
 
-    if v_appointment.id is null then
+    v_appointment_found := found;
+
+    if not v_appointment_found then
       raise exception 'Appointment is invalid, cancelled, already used, or belongs to another patient/clinic';
     end if;
 
@@ -76,8 +84,9 @@ begin
       raise exception 'The selected consultation type does not match the appointment';
     end if;
 
-    -- Only inspect the entitlement after a real entitlement row has been
-    -- selected. Ordinary appointments may legitimately have none.
+    -- An appointment without an entitlement is a normal full-price appointment.
+    -- Only query the entitlement table when the appointment explicitly points
+    -- to an entitlement.
     if v_appointment.fee_entitlement_id is not null then
       select e.* into v_entitlement
       from appointment_fee_entitlements e
@@ -86,7 +95,9 @@ begin
         and e.patient_id = p_patient_id
       for update;
 
-      if v_entitlement.id is null then
+      v_entitlement_found := found;
+
+      if not v_entitlement_found then
         raise exception 'Appointment has an invalid financial entitlement';
       end if;
 
