@@ -30,6 +30,12 @@ create index if not exists idx_lab_order_items_service_charge
 -- The UI should consume this view (or reproduce the same predicates): only
 -- paid and authorized items are eligible for laboratory work. Deferred and
 -- pending-payment items remain visible to billing/reception, but not here.
+--
+-- IMPORTANT: lab_order_item_status is an enum defined by migration 37 as:
+--   pending, sample_collected, completed, cancelled
+-- There is NO 'processing' enum value. sample_collected is the in-progress
+-- state and is therefore used below wherever an active/processing state is
+-- required.
 -- ----------------------------------------------------------------------------
 create or replace view public.laboratory_work_queue as
 select
@@ -321,15 +327,18 @@ after insert or update of billing_status, status on public.lab_order_items
 for each row execute function public.audit_lab_order_item_transition();
 
 -- ----------------------------------------------------------------------------
--- 6. Prevent a laboratory item from being completed unless it was financially
--- ready. This is the database-level clinical/financial gate.
+-- 6. Prevent a laboratory item from entering an active/finished clinical
+-- state unless it was financially ready.
+--
+-- The existing enum has no 'processing' value. Its active/in-progress state
+-- is 'sample_collected', so both sample collection and completion are gated.
 -- ----------------------------------------------------------------------------
 create or replace function public.guard_lab_item_financial_readiness()
 returns trigger
 language plpgsql
 as $$
 begin
-  if new.status in ('processing','completed')
+  if new.status in ('sample_collected','completed')
      and new.billing_status not in ('paid','authorized') then
     raise exception 'Laboratory item is not financially authorized: billing status %', new.billing_status;
   end if;
@@ -368,7 +377,7 @@ as $$
     loi.billing_status::text,
     loi.service_charge_id,
     case
-      when loi.status in ('processing','completed')
+      when loi.status in ('sample_collected','completed')
        and loi.billing_status not in ('paid','authorized')
         then 'CLINICAL_WORK_WITHOUT_FINANCIAL_AUTHORIZATION'
       when loi.billing_status = 'authorized'
@@ -382,7 +391,7 @@ as $$
   from lab_order_items loi
   where loi.clinic_id = p_clinic_id
     and (
-      (loi.status in ('processing','completed') and loi.billing_status not in ('paid','authorized'))
+      (loi.status in ('sample_collected','completed') and loi.billing_status not in ('paid','authorized'))
       or (loi.billing_status in ('paid','authorized') and loi.service_charge_id is null)
     );
 $$;
