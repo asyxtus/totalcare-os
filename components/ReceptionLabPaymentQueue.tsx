@@ -39,7 +39,8 @@ export default function ReceptionLabPaymentQueue({ rows, lang }: { rows: LabVisi
     setBusy(true); setError(null)
     const result = await prepareSelectedLabPayment(selectedItems.map(i => i.id))
     if (result.error) setError(result.error)
-    else { setInvoiceId(result.invoiceId); setPayAmount(String(total)) }
+    else if (result.invoiceId) { setInvoiceId(result.invoiceId); setPayAmount(String(total)) }
+    else setError(lang === 'fr' ? 'Impossible de créer la facture des examens sélectionnés.' : 'Unable to create the invoice for the selected investigations.')
     setBusy(false)
   }
 
