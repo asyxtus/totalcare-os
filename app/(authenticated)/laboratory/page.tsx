@@ -18,29 +18,33 @@ export default async function LaboratoryPage() {
 
   const supabase = await createClient()
 
+  // The active laboratory queue is a FINANCIAL readiness queue, not a
+  // clinical-order queue. Only paid or explicitly authorized items may be
+  // performed. Deferred and pending-payment items remain visible to billing
+  // / reception, but never to laboratory staff.
   const { data: items, error } = await supabase
     .from('lab_order_items')
     .select(`
-      id, item_type, status, created_at, external_test_name, lab_order_id,
+      id, item_type, status, billing_status, billing_mode, authorization_status,
+      created_at, external_test_name, lab_order_id,
       lab_panel_id, lab_test_catalog_id,
       lab_orders(id, ordered_at, visit_id, visits(patients(id, full_name, patient_code)))
     `)
     .in('status', ['pending', 'sample_collected'])
+    .in('billing_status', ['paid', 'authorized'])
     .order('created_at', { ascending: true })
 
-  // Results entered but not yet verified — these leave the pending queue
-  // above once status flips to 'completed', so without this second query
-  // they'd be invisible anywhere: not in the pending list, not in any
-  // "done" list, findable only by guessing the item's direct URL.
+  // Results entered but not yet verified.
   const { data: unverifiedRaw, error: unverifiedError } = await supabase
     .from('lab_order_items')
     .select(`
-      id, item_type, created_at, external_test_name, lab_order_id,
+      id, item_type, billing_status, created_at, external_test_name, lab_order_id,
       lab_panel_id, lab_test_catalog_id,
       lab_orders(id, ordered_at, visit_id, visits(patients(id, full_name, patient_code))),
       lab_results(id, verified_at)
     `)
     .eq('status', 'completed')
+    .in('billing_status', ['paid', 'authorized'])
     .order('created_at', { ascending: true })
 
   const firstResultOf = (item: any) => {
@@ -48,46 +52,38 @@ export default async function LaboratoryPage() {
     if (!r) return null
     return Array.isArray(r) ? (r[0] ?? null) : r
   }
-  // Only items that actually have an individual result row belong in the
-  // verification queue. An attachment-only completion (photo of a printed
-  // panel, no manual values) has nothing to verify through this mechanism —
-  // the attached file itself is the record — so it's excluded here rather
-  // than sitting in this list forever with no way to clear it. It shows up
-  // in the Completed tab below instead.
+
   const unverified = (unverifiedRaw ?? []).filter((item: any) => {
     const result = firstResultOf(item)
     return result && !result.verified_at
   })
   if (unverifiedError) console.error('unverified lab items:', unverifiedError)
 
-  // Completed tab — every test that's actually done: verified individual
-  // results AND attachment-only completions alike. This is the "history /
-  // lookup" view, separate from the two lists above (which are the
-  // active, actionable queue a lab tech checks constantly).
+  // Completed history is also restricted to investigations that were
+  // financially authorized. Deferred/unpaid orders must never appear as if
+  // the laboratory had performed them.
   const { data: completedRaw, error: completedError } = await supabase
     .from('lab_order_items')
     .select(`
-      id, item_type, created_at, external_test_name, lab_order_id,
+      id, item_type, billing_status, created_at, external_test_name, lab_order_id,
       lab_panel_id, lab_test_catalog_id,
       lab_orders(id, ordered_at, visit_id, visits(patients(id, full_name, patient_code))),
       lab_results(id, verified_at, numeric_value, qualitative_value, is_abnormal, is_critical)
     `)
     .eq('status', 'completed')
+    .in('billing_status', ['paid', 'authorized'])
     .order('created_at', { ascending: false })
     .limit(200)
   if (completedError) console.error('completed lab items:', completedError)
 
   const completed = (completedRaw ?? []).filter((item: any) => {
     const result = firstResultOf(item)
-    return !result || result.verified_at // either attachment-only, or a verified value result
+    return !result || result.verified_at
   })
 
   const { data: panels } = await supabase.from('lab_panels').select('id, name_fr, name_en')
   const { data: tests } = await supabase.from('lab_test_catalog').select('id, name_fr, name_en')
 
-  // My own productivity — same pattern as the doctor's page and the
-  // executive dashboard: this week vs last week, honest "no reference"
-  // when there isn't two weeks of data yet.
   const fourteenDaysAgo = doualaDateString(13)
   const { data: myProdRows } = await supabase
     .from('lab_tech_productivity_daily')
@@ -115,7 +111,7 @@ export default async function LaboratoryPage() {
     <div>
       <h1 style={{ fontSize: '18px', fontWeight: 500, margin: '0 0 4px' }}>{lang === 'fr' ? 'Laboratoire' : 'Laboratory'}</h1>
       <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 1.25rem' }}>
-        {lang === 'fr' ? 'Examens en attente de prélèvement ou de résultat' : 'Tests awaiting sample collection or results'}
+        {lang === 'fr' ? 'Examens autorisés — payés ou pris en charge par la clinique' : 'Authorized tests — paid or charged to the encounter'}
       </p>
 
       <StatCardRow>
