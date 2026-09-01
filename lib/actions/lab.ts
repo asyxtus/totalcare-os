@@ -1,4 +1,3 @@
-// lib/actions/lab.ts
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
@@ -23,18 +22,20 @@ export async function markSampleCollected(itemId: string) {
 
   if (error) return friendlyError('mark_sample_collected', 'Impossible de marquer le prélèvement.', error)
 
+  await supabase.from('audit_log').insert({
+    clinic_id: staff.clinicId,
+    staff_id: staff.staffId,
+    action: 'laboratory.sample_collected',
+    entity_type: 'lab_order_item',
+    entity_id: itemId,
+    details: { performed_by: staff.staffId },
+  })
+
   revalidatePath(`/laboratory/${itemId}`)
   revalidatePath('/laboratory')
   return { success: true }
 }
 
-// THE FIX: one action, saves everything currently in the form AND
-// completes the item, atomically. Replaces the old pattern where each
-// row had its own separate "Enregistrer" button — if a lab tech typed
-// values into several fields but only saved one (or none, reasonably
-// assuming typing meant saving), the rest silently never made it to the
-// database, and the doctor would see only whatever partial data (or
-// just the attachment) happened to have been individually saved.
 export async function saveResultsAndComplete(
   itemId: string,
   clinicId: string,
@@ -52,7 +53,7 @@ export async function saveResultsAndComplete(
     const numericValue = numericValues[i]
     const qualitativeValue = qualitativeValues[i]
 
-    if (!numericValue && !qualitativeValue) continue // genuinely blank, nothing to save
+    if (!numericValue && !qualitativeValue) continue
 
     const { data: existing } = await supabase
       .from('lab_results')
@@ -88,6 +89,15 @@ export async function saveResultsAndComplete(
     return friendlyError('complete_lab_order_item', 'Résultats enregistrés, mais impossible de terminer cet examen.', completeError)
   }
 
+  await supabase.from('audit_log').insert({
+    clinic_id: staff.clinicId,
+    staff_id: staff.staffId,
+    action: 'laboratory.item_performed',
+    entity_type: 'lab_order_item',
+    entity_id: itemId,
+    details: { performed_by: staff.staffId, result_count: testIds.length },
+  })
+
   redirect('/laboratory')
 }
 
@@ -101,6 +111,15 @@ export async function completeViaAttachment(itemId: string) {
   })
 
   if (error) return friendlyError('completeViaAttachment', 'Impossible de terminer cet examen.', error)
+
+  await supabase.from('audit_log').insert({
+    clinic_id: staff.clinicId,
+    staff_id: staff.staffId,
+    action: 'laboratory.item_performed',
+    entity_type: 'lab_order_item',
+    entity_id: itemId,
+    details: { performed_by: staff.staffId, completion_method: 'attachment' },
+  })
 
   revalidatePath(`/laboratory/${itemId}`)
   revalidatePath('/laboratory')
@@ -121,6 +140,15 @@ export async function recordAttachment(itemId: string, clinicId: string, filePat
 
   if (error) return friendlyError('recordAttachment', 'Le fichier a été téléversé, mais n\'a pas pu être enregistré.', error)
 
+  await supabase.from('audit_log').insert({
+    clinic_id: staff.clinicId,
+    staff_id: staff.staffId,
+    action: 'laboratory.result_attachment_uploaded',
+    entity_type: 'lab_order_item',
+    entity_id: itemId,
+    details: { file_type: fileType, file_path: filePath },
+  })
+
   revalidatePath(`/laboratory/${itemId}`)
   return { success: true }
 }
@@ -135,6 +163,15 @@ export async function verifyResult(resultId: string, itemId: string) {
   })
 
   if (error) return friendlyError('verify_lab_result', 'Impossible de valider ce résultat.', error)
+
+  await supabase.from('audit_log').insert({
+    clinic_id: staff.clinicId,
+    staff_id: staff.staffId,
+    action: 'laboratory.result_verified',
+    entity_type: 'lab_result',
+    entity_id: resultId,
+    details: { lab_order_item_id: itemId, verified_by: staff.staffId },
+  })
 
   revalidatePath(`/laboratory/${itemId}`)
   return { success: true }
