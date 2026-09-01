@@ -3,6 +3,7 @@ import { getCurrentStaff } from '@/lib/auth/getCurrentStaff'
 import AppShell from '@/components/AppShell'
 import ConsultationFollowupScheduler from '@/components/ConsultationFollowupScheduler'
 import ConsultationLabBillingBridge from '@/components/ConsultationLabBillingBridge'
+import EncounterJourneyLookup from '@/components/EncounterJourneyLookup'
 
 export default async function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const staff = await getCurrentStaff()
@@ -26,6 +27,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
     >
       <ConsultationFollowupScheduler />
       <ConsultationLabBillingBridge />
+      <EncounterJourneyLookup lang={staff.preferredLanguage} />
       {children}
     </AppShell>
   )
