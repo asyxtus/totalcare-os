@@ -39,11 +39,15 @@ function friendlyDispensingError(err: { message?: string; code?: string } | null
     reason = "Le lot sélectionné est expiré ou sa date d'expiration ne permet pas la délivrance."
   } else if (normalized.includes('permission') || normalized.includes('not authorized') || normalized.includes('forbidden')) {
     reason = "Vous n'êtes pas autorisé à effectuer cette délivrance."
+  } else if (raw) {
+    // Keep the real database reason visible, but bounded and without exposing a
+    // stack trace or server internals. This is especially useful when a newly
+    // deployed RPC/schema mismatch is not yet covered by a friendly mapping.
+    reason = raw.replace(/\s+/g, ' ').slice(0, 300)
   }
 
   return {
     error: `Impossible de dispenser ce médicament. Raison : ${reason}`,
-    ...(process.env.NODE_ENV !== 'production' && raw ? { debug: raw, code: err?.code ?? null } : {}),
   }
 }
 
