@@ -23,21 +23,28 @@ export default async function ReceptionPage({ searchParams }: { searchParams: Pr
   const { data: directLabPanels } = await supabase.from('clinic_lab_panels').select('id,price_xaf,lab_panels(id,name_fr,name_en)').eq('clinic_id',staff.clinicId).eq('is_active',true).order('price_xaf',{ascending:true})
   const { data: imagingCatalog } = await supabase.from('imaging_catalog').select('id,code,name_en,name_fr,modality,price_xaf,turnaround_minutes,preparation_instructions,clinical_notes,is_active').eq('clinic_id',staff.clinicId).eq('is_active',true).order('modality').order('name_en')
 
-  const { data: labOrders } = await supabase.from('lab_orders').select('id,visit_id,billing_mode,ordered_at,visits!inner(id,is_emergency,patients(id,full_name,patient_code)),lab_order_items(id,item_type,status,billing_status,service_charge_id,lab_panel_id,lab_test_catalog_id,external_test_name,service_charges(amount_xaf),lab_panels(name_fr,name_en),lab_test_catalog(name_fr,name_en)').eq('clinic_id',staff.clinicId).in('lab_order_items.billing_status',['pending_payment','deferred']).order('ordered_at',{ascending:true})
+  // Query pending laboratory items directly. The previous nested lab_orders
+  // filter could silently omit valid payment items. Reception owns payment
+  // selection, so the source of truth here is lab_order_items itself.
+  const { data: pendingLabItems } = await supabase
+    .from('lab_order_items')
+    .select('id,item_type,status,billing_status,service_charge_id,lab_panel_id,lab_test_catalog_id,external_test_name,service_charges(amount_xaf),lab_panels(name_fr,name_en),lab_test_catalog(name_fr,name_en),lab_orders!inner(id,visit_id,clinic_id,billing_mode,ordered_at,visits!inner(id,is_emergency,patients!inner(id,full_name,patient_code)))')
+    .eq('clinic_id',staff.clinicId)
+    .eq('status','pending')
+    .in('billing_status',['pending_payment','deferred'])
+    .order('created_at',{ascending:true})
+
   const testPrices = new Map((directLabTests ?? []).map((x:any) => [x.id, Number(x.price_xaf ?? 0)]))
   const panelPrices = new Map((directLabPanels ?? []).map((x:any) => [x.id, Number(x.price_xaf ?? 0)]))
   const labPaymentMap = new Map<string, any>()
-  for (const order of (labOrders ?? []) as any[]) {
-    const visit = order.visits; if (!visit?.patients) continue
-    const pendingItems = (order.lab_order_items ?? []).filter((item:any) => item.status === 'pending' && ['pending_payment','deferred'].includes(item.billing_status))
-    if (!pendingItems.length) continue
+  for (const item of (pendingLabItems ?? []) as any[]) {
+    const order = item.lab_orders; const visit = order?.visits
+    if (!visit?.patients) continue
     const existing = labPaymentMap.get(order.visit_id) ?? { visitId: order.visit_id, patientName: visit.patients.full_name, patientCode: visit.patients.patient_code, isEmergency: !!visit.is_emergency, items: [] }
-    for (const item of pendingItems) {
-      const charge = Array.isArray(item.service_charges) ? item.service_charges[0] : item.service_charges
-      const price = Number(charge?.amount_xaf ?? (item.item_type === 'panel' ? panelPrices.get(item.lab_panel_id) : testPrices.get(item.lab_test_catalog_id)) ?? 0)
-      const name = item.external_test_name || (item.item_type === 'panel' ? item.lab_panels?.name_fr : item.lab_test_catalog?.name_fr) || (lang === 'fr' ? 'Examen de laboratoire' : 'Laboratory investigation')
-      existing.items.push({ id: item.id, status: item.status, billing_status: item.billing_status, item_type: item.item_type, price_xaf: price, name })
-    }
+    const charge = Array.isArray(item.service_charges) ? item.service_charges[0] : item.service_charges
+    const price = Number(charge?.amount_xaf ?? (item.item_type === 'panel' ? panelPrices.get(item.lab_panel_id) : testPrices.get(item.lab_test_catalog_id)) ?? 0)
+    const name = item.external_test_name || (item.item_type === 'panel' ? item.lab_panels?.name_fr : item.lab_test_catalog?.name_fr) || (lang === 'fr' ? 'Examen de laboratoire' : 'Laboratory investigation')
+    existing.items.push({ id: item.id, status: item.status, billing_status: item.billing_status, item_type: item.item_type, price_xaf: price, name })
     labPaymentMap.set(order.visit_id, existing)
   }
   const labPaymentRows = [...labPaymentMap.values()]
