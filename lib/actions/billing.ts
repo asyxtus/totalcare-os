@@ -118,6 +118,16 @@ export async function collectPayment(invoiceId: string, formData: FormData) {
 
   if (!amount || parseFloat(amount) <= 0) return { error: 'Montant invalide.' }
 
+  // Resolve the encounter before collecting payment. Some invoices are not
+  // encounter-linked, so advancement is conditional on a visit_id.
+  const { data: invoice, error: invoiceError } = await supabase
+    .from('invoices')
+    .select('visit_id')
+    .eq('id', invoiceId)
+    .maybeSingle()
+
+  if (invoiceError) return friendlyError('collectPayment', 'Impossible de retrouver la consultation liée à cette facture.', invoiceError)
+
   const totalAmount = parseFloat(amount)
   const splits = [{ method, amount: totalAmount, provider_transaction_ref: reference || null }]
 
@@ -129,6 +139,13 @@ export async function collectPayment(invoiceId: string, formData: FormData) {
   })
 
   if (error) return friendlyError('create_payment', 'Impossible d\'encaisser ce paiement.', error)
+
+  if (invoice?.visit_id) {
+    const { error: advanceError } = await supabase.rpc('advance_encounter_status', {
+      p_visit_id: invoice.visit_id,
+    })
+    if (advanceError) console.error('advance_encounter_status after invoice payment failed:', advanceError)
+  }
 
   revalidatePath('/billing')
   return { success: true, paymentId: paymentId as string | null }
@@ -204,6 +221,18 @@ export async function collectChargesDirectly(chargeIds: string[], formData: Form
   if (!amount || amount <= 0) return { error: 'Montant invalide.' }
   if (!chargeIds.length) return { error: 'Aucun frais à encaisser.' }
 
+  // Resolve all encounter ids before marking the charges paid. Multiple charges
+  // can belong to one encounter; reconcile each unique visit exactly once.
+  const { data: chargeLinks, error: chargeLinksError } = await supabase
+    .from('service_charges')
+    .select('id, visit_id')
+    .in('id', chargeIds)
+    .eq('clinic_id', staff.clinicId)
+
+  if (chargeLinksError) return friendlyError('collectChargesDirectly', 'Impossible de retrouver la consultation liée à ces frais.', chargeLinksError)
+
+  const visitIds = Array.from(new Set((chargeLinks ?? []).map((row) => row.visit_id).filter((id): id is string => Boolean(id))))
+
   // If patientId wasn't passed explicitly, look it up from the first charge
   // so the payment record always has a patient attached — otherwise the
   // receipt and Receipts list show a blank patient name.
@@ -273,6 +302,13 @@ export async function collectChargesDirectly(chargeIds: string[], formData: Form
     entity_type: 'service_charge',
     details: { charge_ids: chargeIds, amount, method, reference, payment_id: payment.id },
   })
+
+  for (const visitId of visitIds) {
+    const { error: advanceError } = await supabase.rpc('advance_encounter_status', {
+      p_visit_id: visitId,
+    })
+    if (advanceError) console.error('advance_encounter_status after direct charge payment failed:', advanceError)
+  }
 
   revalidatePath('/billing')
   return { success: true, paymentId: payment.id }
