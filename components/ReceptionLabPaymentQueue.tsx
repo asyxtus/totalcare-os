@@ -45,10 +45,12 @@ export default function ReceptionLabPaymentQueue({ rows, lang }: { rows: LabVisi
   }
 
   async function pay() {
+    if (!invoiceId || !selectedItems.length) return setError(lang === 'fr' ? 'Les examens sélectionnés sont requis.' : 'Selected investigations are required.')
     const amount = Number(payAmount)
-    if (!invoiceId || !Number.isFinite(amount) || amount <= 0) return setError(lang === 'fr' ? 'Montant invalide.' : 'Invalid amount.')
+    if (!Number.isFinite(amount) || amount <= 0) return setError(lang === 'fr' ? 'Montant invalide.' : 'Invalid amount.')
+    if (amount !== total) return setError(lang === 'fr' ? `Le paiement doit être exactement de ${money(total)}. Pour réduire le montant, sélectionnez moins d’examens.` : `Payment must be exactly ${money(total)}. To reduce the amount, select fewer investigations.`)
     setBusy(true); setError(null)
-    const result = await collectLabPayment(invoiceId, amount, method, reference)
+    const result = await collectLabPayment(invoiceId, selectedItems.map(i => i.id), total, method, reference)
     if (result.error) setError(result.error)
     else { setInvoiceId(null); setSelected({}); setPayAmount(''); setReference(''); window.location.reload() }
     setBusy(false)
@@ -59,7 +61,7 @@ export default function ReceptionLabPaymentQueue({ rows, lang }: { rows: LabVisi
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 8 }}>
         <div>
           <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{lang === 'fr' ? 'Examens de laboratoire à encaisser' : 'Laboratory investigations to collect'}</h2>
-          <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', margin: '3px 0 0' }}>{lang === 'fr' ? 'Sélectionnez uniquement les examens que le patient peut payer maintenant.' : 'Select only the investigations the patient can pay for now.'}</p>
+          <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', margin: '3px 0 0' }}>{lang === 'fr' ? 'Sélectionnez uniquement les examens que le patient peut payer maintenant. Les autres resteront différés.' : 'Select only the investigations the patient can pay for now. The others remain deferred.'}</p>
         </div>
         {selectedItems.length > 0 && <strong style={{ fontSize: 12 }}>{money(total)}</strong>}
       </div>
@@ -83,12 +85,13 @@ export default function ReceptionLabPaymentQueue({ rows, lang }: { rows: LabVisi
         </div>
       ))}
 
-      {selectedItems.length > 0 && !invoiceId && <button type="button" disabled={busy} onClick={prepare} style={{ width: '100%', padding: '10px 14px', border: 'none', borderRadius: 'var(--radius-sm)', background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', fontWeight: 600, cursor: 'pointer' }}>{busy ? '…' : (lang === 'fr' ? `Pay selected — ${money(total)}` : `Pay selected — ${money(total)}`)}</button>}
+      {selectedItems.length > 0 && !invoiceId && <button type="button" disabled={busy} onClick={prepare} style={{ width: '100%', padding: '10px 14px', border: 'none', borderRadius: 'var(--radius-sm)', background: 'var(--color-accent)', color: 'var(--color-accent-text-on)', fontWeight: 600, cursor: 'pointer' }}>{busy ? '…' : (lang === 'fr' ? `Préparer le paiement — ${money(total)}` : `Prepare payment — ${money(total)}`)}</button>}
 
       {invoiceId && <div style={{ border: '1px solid var(--color-accent)', borderRadius: 'var(--radius-md)', padding: 12, marginTop: 10, background: 'var(--color-surface)' }}>
-        <strong style={{ fontSize: 13 }}>{lang === 'fr' ? 'Encaisser les examens sélectionnés' : 'Collect selected investigations'}</strong>
+        <strong style={{ fontSize: 13 }}>{lang === 'fr' ? 'Paiement des examens sélectionnés' : 'Payment for selected investigations'}</strong>
+        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--color-text-secondary)' }}>{lang === 'fr' ? `Montant exact à encaisser : ${money(total)}. Pour que le patient paie moins, revenez à la sélection et choisissez moins d’examens.` : `Exact amount to collect: ${money(total)}. To charge less, return to selection and choose fewer investigations.`}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 9 }}>
-          <input value={payAmount} onChange={e => setPayAmount(e.target.value)} type="number" min="1" step="1" placeholder="Montant" style={{ padding: 8, border: '1px solid var(--color-border)', borderRadius: 5 }} />
+          <input value={payAmount} onChange={e => setPayAmount(e.target.value)} type="number" min={total} step="1" placeholder="Montant" style={{ padding: 8, border: '1px solid var(--color-border)', borderRadius: 5 }} aria-label="Exact payment amount" />
           <select value={method} onChange={e => setMethod(e.target.value)} style={{ padding: 8, border: '1px solid var(--color-border)', borderRadius: 5 }}>
             <option value="cash">{lang === 'fr' ? 'Comptant' : 'Cash'}</option>
             <option value="mobile_money">Mobile Money</option>
@@ -96,7 +99,7 @@ export default function ReceptionLabPaymentQueue({ rows, lang }: { rows: LabVisi
           </select>
         </div>
         {method !== 'cash' && <input value={reference} onChange={e => setReference(e.target.value)} placeholder={lang === 'fr' ? 'Référence de transaction' : 'Transaction reference'} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, padding: 8, border: '1px solid var(--color-border)', borderRadius: 5 }} />}
-        <button type="button" disabled={busy} onClick={pay} style={{ width: '100%', marginTop: 8, padding: 10, border: '1px solid var(--color-border)', borderRadius: 5, background: 'var(--color-surface)', fontWeight: 600, cursor: 'pointer' }}>{busy ? '…' : (lang === 'fr' ? 'Encaisser' : 'Collect payment')}</button>
+        <button type="button" disabled={busy || Number(payAmount) !== total} onClick={pay} style={{ width: '100%', marginTop: 8, padding: 10, border: '1px solid var(--color-border)', borderRadius: 5, background: 'var(--color-surface)', fontWeight: 600, cursor: 'pointer' }}>{busy ? '…' : (lang === 'fr' ? `Encaisser ${money(total)}` : `Collect ${money(total)}`)}</button>
       </div>}
       {error && <p style={{ color: 'var(--color-critical-text)', fontSize: 12, marginTop: 8 }}>{error}</p>}
     </section>
