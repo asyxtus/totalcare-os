@@ -40,9 +40,6 @@ function friendlyDispensingError(err: { message?: string; code?: string } | null
   } else if (normalized.includes('permission') || normalized.includes('not authorized') || normalized.includes('forbidden')) {
     reason = "Vous n'êtes pas autorisé à effectuer cette délivrance."
   } else if (raw) {
-    // Keep the real database reason visible, but bounded and without exposing a
-    // stack trace or server internals. This is especially useful when a newly
-    // deployed RPC/schema mismatch is not yet covered by a friendly mapping.
     reason = raw.replace(/\s+/g, ' ').slice(0, 300)
   }
 
@@ -206,6 +203,18 @@ export async function dispensePrescriptionItem(prescriptionId: string, itemId: s
 
   if (!quantity || quantity <= 0) return { error: 'Quantité invalide.' }
 
+  // Capture the encounter before dispensing so the successful pharmacy action
+  // can reconcile the encounter status immediately afterwards.
+  const { data: prescription, error: prescriptionError } = await supabase
+    .from('prescriptions')
+    .select('visit_id')
+    .eq('id', prescriptionId)
+    .maybeSingle()
+
+  if (prescriptionError || !prescription?.visit_id) {
+    return friendlyDispensingError(prescriptionError ?? { message: 'Prescription has no linked encounter.' })
+  }
+
   const { data, error } = await supabase.rpc('dispense_prescription_item', {
     p_prescription_item_id: itemId,
     p_quantity: quantity,
@@ -223,6 +232,16 @@ export async function dispensePrescriptionItem(prescriptionId: string, itemId: s
 
   if (counselingNotes) {
     await supabase.from('prescription_items').update({ dispensing_notes: counselingNotes }).eq('id', itemId)
+  }
+
+  // Dispensing is the pharmacy completion event. Reconcile only after the
+  // dispensing RPC succeeds so a failed dispense cannot move the encounter.
+  const { error: advanceError } = await supabase.rpc('advance_encounter_status', {
+    p_visit_id: prescription.visit_id,
+  })
+
+  if (advanceError) {
+    console.error('advance_encounter_status after pharmacy dispensing failed:', advanceError)
   }
 
   revalidatePath(`/pharmacy/prescriptions/${prescriptionId}`)
