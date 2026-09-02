@@ -35,18 +35,22 @@ export async function prepareSelectedLabPayment(itemIds: string[]) {
   return { success: true, invoiceId: data as string }
 }
 
-export async function collectLabPayment(invoiceId: string, amount: number, method: string, reference?: string) {
+export async function collectLabPayment(invoiceId: string, itemIds: string[], amount: number, method: string, reference?: string) {
   const staff = await getCurrentStaff()
   const supabase = await createClient()
-  if (!invoiceId || !Number.isFinite(amount) || amount <= 0) return { error: 'Montant invalide.' }
+  const ids = [...new Set((itemIds || []).filter(Boolean))]
+  if (!invoiceId || !ids.length) return { error: 'Les examens sélectionnés sont requis.' }
+  if (!Number.isFinite(amount) || amount <= 0) return { error: 'Montant invalide.' }
   if (!method) return { error: 'Mode de paiement requis.' }
-  const { data, error } = await supabase.rpc('create_payment', {
+  const { data, error } = await supabase.rpc('collect_selected_lab_payment', {
     p_invoice_id: invoiceId,
+    p_lab_order_item_ids: ids,
     p_total_amount_xaf: amount,
     p_received_by: staff.staffId,
-    p_splits: [{ method, amount, provider_transaction_ref: reference?.trim() || null }],
+    p_method: method,
+    p_reference: reference?.trim() || null,
   })
   if (error) return { error: error.message || "Impossible d'encaisser le paiement." }
-  revalidatePath('/billing'); revalidatePath('/reception'); revalidatePath('/laboratory')
+  revalidatePath('/billing'); revalidatePath('/reception'); revalidatePath('/laboratory'); revalidatePath('/dashboard')
   return { success: true, paymentId: data as string | null }
 }
