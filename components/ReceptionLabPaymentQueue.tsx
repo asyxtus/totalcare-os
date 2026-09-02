@@ -50,7 +50,7 @@ export default function ReceptionLabPaymentQueue({ rows, lang }: { rows: LabVisi
     if (!Number.isFinite(amount) || amount <= 0) return setError(lang === 'fr' ? 'Montant invalide.' : 'Invalid amount.')
     if (amount !== total) return setError(lang === 'fr' ? `Le paiement doit être exactement de ${money(total)}. Pour réduire le montant, sélectionnez moins d’examens.` : `Payment must be exactly ${money(total)}. To reduce the amount, select fewer investigations.`)
     setBusy(true); setError(null)
-    const result = await collectLabPayment(invoiceId, selectedItems.map(i => i.id), total, method, reference)
+    const result = await collectLabPayment(invoiceId, selectedItems.map(i => i.id), amount, method, reference)
     if (result.error) setError(result.error)
     else { setInvoiceId(null); setSelected({}); setPayAmount(''); setReference(''); window.location.reload() }
     setBusy(false)
