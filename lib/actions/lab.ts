@@ -44,6 +44,30 @@ export async function saveResultsAndComplete(
   const staff = await getCurrentStaff()
   const supabase = await createClient()
 
+  // Resolve the encounter before completing the item so the same completion
+  // action can advance the encounter after the lab RPC succeeds.
+  const { data: itemLink, error: itemLinkError } = await supabase
+    .from('lab_order_items')
+    .select('lab_order_id')
+    .eq('id', itemId)
+    .maybeSingle()
+
+  if (itemLinkError || !itemLink?.lab_order_id) {
+    return friendlyError('saveResultsAndComplete', 'Impossible de retrouver la consultation liée à cet examen.', itemLinkError)
+  }
+
+  const { data: labOrder, error: labOrderError } = await supabase
+    .from('lab_orders')
+    .select('visit_id')
+    .eq('id', itemLink.lab_order_id)
+    .maybeSingle()
+
+  if (labOrderError || !labOrder?.visit_id) {
+    return friendlyError('saveResultsAndComplete', 'Impossible de retrouver la consultation liée à cet examen.', labOrderError)
+  }
+
+  const visitId = labOrder.visit_id
+
   const testIds = formData.getAll('result_test_id') as string[]
   const numericValues = formData.getAll('result_numeric_value') as string[]
   const qualitativeValues = formData.getAll('result_qualitative_value') as string[]
@@ -98,12 +122,42 @@ export async function saveResultsAndComplete(
     details: { performed_by: staff.staffId, result_count: testIds.length },
   })
 
+  // The lab completion is a real workflow transition. Reconcile the encounter
+  // only after the lab RPC has committed successfully.
+  const { error: advanceError } = await supabase.rpc('advance_encounter_status', {
+    p_visit_id: visitId,
+  })
+
+  if (advanceError) {
+    console.error('advance_encounter_status after lab completion failed:', advanceError)
+  }
+
   redirect('/laboratory')
 }
 
 export async function completeViaAttachment(itemId: string) {
   const staff = await getCurrentStaff()
   const supabase = await createClient()
+
+  const { data: itemLink, error: itemLinkError } = await supabase
+    .from('lab_order_items')
+    .select('lab_order_id')
+    .eq('id', itemId)
+    .maybeSingle()
+
+  if (itemLinkError || !itemLink?.lab_order_id) {
+    return friendlyError('completeViaAttachment', 'Impossible de retrouver la consultation liée à cet examen.', itemLinkError)
+  }
+
+  const { data: labOrder, error: labOrderError } = await supabase
+    .from('lab_orders')
+    .select('visit_id')
+    .eq('id', itemLink.lab_order_id)
+    .maybeSingle()
+
+  if (labOrderError || !labOrder?.visit_id) {
+    return friendlyError('completeViaAttachment', 'Impossible de retrouver la consultation liée à cet examen.', labOrderError)
+  }
 
   const { error } = await supabase.rpc('complete_lab_order_item', {
     p_lab_order_item_id: itemId,
@@ -120,6 +174,14 @@ export async function completeViaAttachment(itemId: string) {
     entity_id: itemId,
     details: { performed_by: staff.staffId, completion_method: 'attachment' },
   })
+
+  const { error: advanceError } = await supabase.rpc('advance_encounter_status', {
+    p_visit_id: labOrder.visit_id,
+  })
+
+  if (advanceError) {
+    console.error('advance_encounter_status after lab attachment completion failed:', advanceError)
+  }
 
   revalidatePath(`/laboratory/${itemId}`)
   revalidatePath('/laboratory')
