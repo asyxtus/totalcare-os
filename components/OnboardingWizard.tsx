@@ -41,10 +41,12 @@ type Progress = {
 
 export default function OnboardingWizard({
   staffId,
+  clinicId,
   staffRole,
   lang,
 }: {
   staffId: string
+  clinicId: string
   staffRole: StaffRole
   lang: Lang
 }) {
@@ -117,25 +119,23 @@ export default function OnboardingWizard({
 
     let nextProgress = progressData as Progress | null
     if (!nextProgress) {
+      const now = new Date().toISOString()
       const { data: created, error: createError } = await supabase
         .from('staff_onboarding_progress')
         .insert({
           staff_id: staffId,
-          clinic_id: undefined,
+          clinic_id: clinicId,
           tour_id: selectedTour.id,
           tour_version: selectedTour.version,
           enabled: true,
           completed: false,
           current_step: 1,
-          started_at: new Date().toISOString(),
-          last_seen_at: new Date().toISOString(),
+          started_at: now,
+          last_seen_at: now,
         })
         .select('id, enabled, completed, current_step')
         .single()
 
-      // clinic_id is deliberately supplied below through a second path when
-      // the table requires it; keeping this error explicit avoids silently
-      // marking a user as trained when persistence is unavailable.
       if (createError || !created) {
         setError(
           lang === 'fr'
@@ -154,7 +154,7 @@ export default function OnboardingWizard({
     if (nextProgress.enabled && !nextProgress.completed && nextSteps.length > 0) {
       setOpen(true)
     }
-  }, [lang, staffId, supabase])
+  }, [clinicId, lang, staffId, supabase])
 
   useEffect(() => {
     void load()
