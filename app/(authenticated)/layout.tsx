@@ -20,6 +20,8 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
       clinicName={staff.clinicName}
       staffName={staff.fullName}
       staffInitials={initials}
+      staffId={staff.staffId}
+      clinicId={staff.clinicId}
       staffRole={staff.role}
       primaryRole={staff.primaryRole}
       availableRoles={staff.availableRoles}
