@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { CheckCircle2, ChevronLeft, ChevronRight, CircleHelp, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { StaffRole } from '@/lib/types'
@@ -11,6 +11,8 @@ type Lang = 'fr' | 'en'
 type Tour = {
   id: string
   version: number
+  phase: number
+  tour_key: string
   title_en: string
   title_fr: string
   description_en: string | null
@@ -30,6 +32,7 @@ type Step = {
   action_fr: string | null
   target_route: string | null
   target_selector: string | null
+  metadata?: Record<string, unknown>
 }
 
 type Progress = {
@@ -37,6 +40,20 @@ type Progress = {
   enabled: boolean
   completed: boolean
   current_step: number
+}
+
+type Rect = { top: number; left: number; width: number; height: number }
+
+function moduleTourKey(pathname: string | null): string | null {
+  if (!pathname) return null
+  if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) return 'module_dashboard'
+  if (pathname === '/reception' || pathname.startsWith('/reception/')) return 'module_reception'
+  if (pathname === '/doctor' || pathname.startsWith('/doctor/')) return 'module_doctor'
+  if (pathname === '/laboratory' || pathname.startsWith('/laboratory/')) return 'module_laboratory'
+  if (pathname === '/pharmacy' || pathname.startsWith('/pharmacy/')) return 'module_pharmacy'
+  if (pathname === '/billing' || pathname.startsWith('/billing/')) return 'module_billing'
+  if (pathname === '/patients' || pathname.startsWith('/patients/')) return 'module_patients'
+  return null
 }
 
 export default function OnboardingWizard({
@@ -51,6 +68,7 @@ export default function OnboardingWizard({
   lang: Lang
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const supabase = useMemo(() => createClient(), [])
   const [tour, setTour] = useState<Tour | null>(null)
   const [steps, setSteps] = useState<Step[]>([])
@@ -58,6 +76,9 @@ export default function OnboardingWizard({
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [spotlight, setSpotlight] = useState<Rect | null>(null)
+
+  const requestedModuleTour = useMemo(() => moduleTourKey(pathname), [pathname])
 
   const visibleSteps = useMemo(
     () => steps.filter((step) => !step.roles?.length || step.roles.includes(staffRole)),
@@ -70,55 +91,142 @@ export default function OnboardingWizard({
   )
   const currentStep = visibleSteps[currentIndex]
   const isLast = visibleSteps.length > 0 && currentIndex === visibleSteps.length - 1
+  const isContextual = (tour?.phase ?? 1) >= 2
+
+  const findTarget = useCallback((selector: string | null): HTMLElement | null => {
+    if (!selector || typeof document === 'undefined') return null
+    const selectors = selector.split(',').map((s) => s.trim()).filter(Boolean)
+    for (const candidate of selectors) {
+      try {
+        const elements = Array.from(document.querySelectorAll<HTMLElement>(candidate))
+        const visible = elements.find((el) => {
+          const rect = el.getBoundingClientRect()
+          return rect.width > 0 && rect.height > 0 && getComputedStyle(el).visibility !== 'hidden'
+        })
+        if (visible) return visible
+      } catch {
+        // A bad optional selector must never break the onboarding guide.
+      }
+    }
+    return null
+  }, [])
+
+  const refreshSpotlight = useCallback(() => {
+    if (!open || !isContextual || !currentStep?.target_selector) {
+      setSpotlight(null)
+      return
+    }
+
+    const target = findTarget(currentStep.target_selector)
+    if (!target) {
+      setSpotlight(null)
+      return
+    }
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+    const rect = target.getBoundingClientRect()
+    setSpotlight({
+      top: Math.max(6, rect.top - 7),
+      left: Math.max(6, rect.left - 7),
+      width: rect.width + 14,
+      height: rect.height + 14,
+    })
+  }, [currentStep?.target_selector, findTarget, isContextual, open])
 
   const load = useCallback(async () => {
     setBusy(true)
     setError(null)
+    setSpotlight(null)
 
-    const { data: tourData, error: tourError } = await supabase
+    const { data: coreData, error: coreError } = await supabase
       .from('onboarding_tours')
-      .select('id, version, title_en, title_fr, description_en, description_fr')
+      .select('id, version, phase, tour_key, title_en, title_fr, description_en, description_fr')
       .eq('tour_key', 'core_workflow')
       .eq('is_active', true)
       .order('version', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    if (tourError || !tourData) {
+    if (coreError || !coreData) {
       setError(lang === 'fr' ? 'Le guide est temporairement indisponible.' : 'The guide is temporarily unavailable.')
       setBusy(false)
       return
     }
 
-    const selectedTour = tourData as Tour
-    setTour(selectedTour)
+    const coreTour = coreData as Tour
+    const { data: coreProgressData, error: coreProgressError } = await supabase
+      .from('staff_onboarding_progress')
+      .select('id, enabled, completed, current_step')
+      .eq('staff_id', staffId)
+      .eq('tour_id', coreTour.id)
+      .eq('tour_version', coreTour.version)
+      .maybeSingle()
 
-    const [{ data: stepData, error: stepError }, { data: progressData, error: progressError }] = await Promise.all([
-      supabase
-        .from('onboarding_steps')
-        .select('id, step_key, step_order, roles, title_en, title_fr, body_en, body_fr, action_en, action_fr, target_route, target_selector')
-        .eq('tour_id', selectedTour.id)
-        .order('step_order', { ascending: true }),
-      supabase
-        .from('staff_onboarding_progress')
-        .select('id, enabled, completed, current_step')
-        .eq('staff_id', staffId)
-        .eq('tour_id', selectedTour.id)
-        .eq('tour_version', selectedTour.version)
-        .maybeSingle(),
-    ])
+    if (coreProgressError) {
+      setError(lang === 'fr' ? 'Impossible de charger la progression du guide.' : 'Unable to load guide progress.')
+      setBusy(false)
+      return
+    }
 
-    if (stepError || progressError) {
-      setError(lang === 'fr' ? 'Impossible de charger le guide.' : 'Unable to load the guide.')
+    const coreProgress = coreProgressData as Progress | null
+    let selectedTour = coreTour
+    let selectedProgress = coreProgress
+
+    // Phase 1 always takes precedence until the user has completed it.
+    // Once completed, entering a supported module selects its Phase 2 tour.
+    if (coreProgress?.completed && requestedModuleTour) {
+      const { data: moduleTourData, error: moduleTourError } = await supabase
+        .from('onboarding_tours')
+        .select('id, version, phase, tour_key, title_en, title_fr, description_en, description_fr')
+        .eq('tour_key', requestedModuleTour)
+        .eq('phase', 2)
+        .eq('is_active', true)
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (moduleTourError) {
+        setError(lang === 'fr' ? 'Impossible de charger le guide du module.' : 'Unable to load the module guide.')
+        setBusy(false)
+        return
+      }
+
+      if (moduleTourData) {
+        selectedTour = moduleTourData as Tour
+        const { data: moduleProgressData, error: moduleProgressError } = await supabase
+          .from('staff_onboarding_progress')
+          .select('id, enabled, completed, current_step')
+          .eq('staff_id', staffId)
+          .eq('tour_id', selectedTour.id)
+          .eq('tour_version', selectedTour.version)
+          .maybeSingle()
+
+        if (moduleProgressError) {
+          setError(lang === 'fr' ? 'Impossible de charger la progression du module.' : 'Unable to load module progress.')
+          setBusy(false)
+          return
+        }
+        selectedProgress = moduleProgressData as Progress | null
+      }
+    }
+
+    const { data: stepData, error: stepError } = await supabase
+      .from('onboarding_steps')
+      .select('id, step_key, step_order, roles, title_en, title_fr, body_en, body_fr, action_en, action_fr, target_route, target_selector, metadata')
+      .eq('tour_id', selectedTour.id)
+      .order('step_order', { ascending: true })
+
+    if (stepError) {
+      setError(lang === 'fr' ? 'Impossible de charger les étapes du guide.' : 'Unable to load guide steps.')
       setBusy(false)
       return
     }
 
     const nextSteps = (stepData ?? []) as Step[]
+    setTour(selectedTour)
     setSteps(nextSteps)
 
-    let nextProgress = progressData as Progress | null
-    if (!nextProgress) {
+    if (!selectedProgress) {
       const now = new Date().toISOString()
       const { data: created, error: createError } = await supabase
         .from('staff_onboarding_progress')
@@ -145,20 +253,33 @@ export default function OnboardingWizard({
         setBusy(false)
         return
       }
-      nextProgress = created as Progress
+      selectedProgress = created as Progress
     }
 
-    setProgress(nextProgress)
+    setProgress(selectedProgress)
     setBusy(false)
 
-    if (nextProgress.enabled && !nextProgress.completed && nextSteps.length > 0) {
+    if (selectedProgress.enabled && !selectedProgress.completed && nextSteps.length > 0) {
       setOpen(true)
     }
-  }, [clinicId, lang, staffId, supabase])
+  }, [clinicId, lang, requestedModuleTour, staffId, supabase])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (!open || !isContextual) return
+    const timer = window.setTimeout(refreshSpotlight, 180)
+    const onResize = () => refreshSpotlight()
+    window.addEventListener('resize', onResize)
+    window.addEventListener('scroll', onResize, true)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('scroll', onResize, true)
+    }
+  }, [currentIndex, isContextual, open, refreshSpotlight, pathname])
 
   async function saveProgress(patch: Partial<Progress>) {
     if (!progress) return
@@ -194,6 +315,7 @@ export default function OnboardingWizard({
 
   function closeGuide() {
     setOpen(false)
+    setSpotlight(null)
     if (progress) void saveProgress({})
   }
 
@@ -202,6 +324,7 @@ export default function OnboardingWizard({
     if (isLast) {
       await saveProgress({ completed: true, current_step: visibleSteps.length })
       setOpen(false)
+      setSpotlight(null)
       return
     }
     await saveProgress({ current_step: currentIndex + 2 })
@@ -214,7 +337,12 @@ export default function OnboardingWizard({
 
   function goToModule() {
     if (!currentStep?.target_route) return
+    if (pathname === currentStep.target_route || pathname?.startsWith(`${currentStep.target_route}/`)) {
+      refreshSpotlight()
+      return
+    }
     setOpen(false)
+    setSpotlight(null)
     router.push(currentStep.target_route)
   }
 
@@ -234,6 +362,13 @@ export default function OnboardingWizard({
   const stepBody = lang === 'fr' ? currentStep.body_fr : currentStep.body_en
   const stepAction = lang === 'fr' ? currentStep.action_fr : currentStep.action_en
 
+  const tooltipLeft = spotlight
+    ? Math.min(Math.max(16, spotlight.left), Math.max(16, window.innerWidth - 396))
+    : 0
+  const tooltipTop = spotlight
+    ? Math.min(Math.max(16, spotlight.top + spotlight.height + 16), Math.max(16, window.innerHeight - 250))
+    : 0
+
   return (
     <>
       <button
@@ -242,7 +377,7 @@ export default function OnboardingWizard({
         aria-label={lang === 'fr' ? 'Ouvrir le guide TotalCare' : 'Open TotalCare guide'}
         title={lang === 'fr' ? 'Guide / Aide' : 'Guide / Help'}
         style={{
-          position: 'fixed', right: 18, bottom: 18, zIndex: 100,
+          position: 'fixed', right: 18, bottom: 18, zIndex: 310,
           width: 46, height: 46, borderRadius: '50%', border: '1px solid var(--color-border)',
           background: 'var(--color-surface)', color: 'var(--color-accent)', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -259,20 +394,36 @@ export default function OnboardingWizard({
           aria-labelledby="tc-onboarding-title"
           onClick={(e) => { if (e.target === e.currentTarget) closeGuide() }}
           style={{
-            position: 'fixed', inset: 0, zIndex: 200,
-            background: 'rgba(0,0,0,.48)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'fixed', inset: 0, zIndex: 300,
+            background: spotlight && isContextual ? 'transparent' : 'rgba(0,0,0,.48)',
             padding: 20,
+            pointerEvents: 'none',
           }}
         >
+          {spotlight && isContextual && (
+            <>
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: Math.max(0, spotlight.top), background: 'rgba(0,0,0,.52)', pointerEvents: 'auto' }} />
+              <div style={{ position: 'fixed', top: spotlight.top + spotlight.height, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,.52)', pointerEvents: 'auto' }} />
+              <div style={{ position: 'fixed', top: spotlight.top, left: 0, width: Math.max(0, spotlight.left), height: spotlight.height, background: 'rgba(0,0,0,.52)', pointerEvents: 'auto' }} />
+              <div style={{ position: 'fixed', top: spotlight.top, left: spotlight.left + spotlight.width, right: 0, height: spotlight.height, background: 'rgba(0,0,0,.52)', pointerEvents: 'auto' }} />
+              <div style={{ position: 'fixed', top: spotlight.top, left: spotlight.left, width: spotlight.width, height: spotlight.height, border: '2px solid var(--color-accent)', borderRadius: 10, boxShadow: '0 0 0 3px rgba(255,255,255,.8)', pointerEvents: 'none' }} />
+            </>
+          )}
+
           <div style={{
-            width: 'min(680px, 100%)', maxHeight: 'min(760px, calc(100vh - 40px))', overflowY: 'auto',
+            position: spotlight && isContextual ? 'fixed' : 'relative',
+            top: spotlight && isContextual ? tooltipTop : '50%',
+            left: spotlight && isContextual ? tooltipLeft : '50%',
+            transform: spotlight && isContextual ? 'none' : 'translate(-50%, -50%)',
+            width: 'min(680px, calc(100vw - 40px))', maxHeight: 'min(760px, calc(100vh - 40px))', overflowY: 'auto',
             background: 'var(--color-surface)', border: '1px solid var(--color-border)',
             borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,.24)', padding: 26,
+            pointerEvents: 'auto',
           }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 18 }}>
               <div>
                 <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--color-accent)' }}>
-                  {lang === 'fr' ? 'Guide TotalCare OS' : 'TotalCare OS guide'}
+                  {isContextual ? (lang === 'fr' ? 'Guide du module' : 'Module guide') : (lang === 'fr' ? 'Guide TotalCare OS' : 'TotalCare OS guide')}
                 </p>
                 <h2 id="tc-onboarding-title" style={{ margin: 0, fontSize: 24, color: 'var(--color-text-primary)' }}>{title}</h2>
                 {description && <p style={{ margin: '8px 0 0', color: 'var(--color-text-secondary)', fontSize: 14, lineHeight: 1.55 }}>{description}</p>}
@@ -299,6 +450,11 @@ export default function OnboardingWizard({
                 <button type="button" onClick={goToModule} style={{ marginTop: 18, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-accent)', padding: '9px 13px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
                   {stepAction} →
                 </button>
+              )}
+              {isContextual && currentStep.target_selector && !spotlight && (
+                <p style={{ margin: '14px 0 0', fontSize: 12, color: 'var(--color-warning-text)' }}>
+                  {lang === 'fr' ? 'L’élément à montrer n’est pas visible sur cet écran. Vous pouvez continuer ou ouvrir le module.' : 'The guided element is not visible on this screen. You can continue or open the module.'}
+                </p>
               )}
             </div>
 
