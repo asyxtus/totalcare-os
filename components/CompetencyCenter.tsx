@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Award, CheckCircle2, CircleHelp, GraduationCap, X } from 'lucide-react'
+import { Award, CheckCircle2, GraduationCap, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { StaffRole } from '@/lib/types'
 
@@ -9,13 +9,30 @@ type Lang='fr'|'en'
 type Scenario={id:string;scenario_key:string;title_en:string;title_fr:string;description_en:string;description_fr:string;roles:string[];module_key:string|null;difficulty:string;passing_score:number}
 type Step={id:string;step_order:number;prompt_en:string;prompt_fr:string;options:{id:string;en:string;fr:string}[];correct_option:string;explanation_en:string;explanation_fr:string;points:number}
 type Attempt={id:string;score:number;passed:boolean;completed_at:string|null}
+type AttemptRow=Attempt & {scenario_id:string}
 
 export default function CompetencyCenter({staffId,clinicId,staffRole,lang}:{staffId:string;clinicId:string;staffRole:StaffRole;lang:Lang}){
  const supabase=useMemo(()=>createClient(),[])
  const [open,setOpen]=useState(false); const [scenarios,setScenarios]=useState<Scenario[]>([]); const [attempts,setAttempts]=useState<Record<string,Attempt[]>>({}); const [scenario,setScenario]=useState<Scenario|null>(null); const [steps,setSteps]=useState<Step[]>([]); const [index,setIndex]=useState(0); const [answers,setAnswers]=useState<string[]>([]); const [selected,setSelected]=useState<string|null>(null); const [showExplanation,setShowExplanation]=useState(false); const [score,setScore]=useState(0); const [saving,setSaving]=useState(false); const [loading,setLoading]=useState(false); const [error,setError]=useState<string|null>(null)
  const available=scenarios.filter(s=>!s.roles.length||s.roles.includes(staffRole));
  useEffect(()=>{if(!open)return; void load()},[open,staffId])
- async function load(){setLoading(true);setError(null);const {data,error}=await supabase.from('training_scenarios').select('id,scenario_key,title_en,title_fr,description_en,description_fr,roles,module_key,difficulty,passing_score').eq('phase',4).eq('is_active',true).order('module_key');if(error){setError(error.message);setLoading(false);return}setScenarios((data??[]) as Scenario[]);const {data:a,error:ae}=await supabase.from('training_attempts').select('id,scenario_id,score,passed,completed_at').eq('staff_id',staffId).order('completed_at',{ascending:false});if(!ae){const grouped:Record<string,Attempt[]>={};for(const a of a??[]){const key=(a as {scenario_id:string}).scenario_id;(grouped[key]??=[]).push(a as Attempt)}setAttempts(grouped)}setLoading(false)}
+ async function load(){
+  setLoading(true);setError(null)
+  const {data,error}=await supabase.from('training_scenarios').select('id,scenario_key,title_en,title_fr,description_en,description_fr,roles,module_key,difficulty,passing_score').eq('phase',4).eq('is_active',true).order('module_key')
+  if(error){setError(error.message);setLoading(false);return}
+  setScenarios((data??[]) as Scenario[])
+  const {data:attemptRows,error:ae}=await supabase.from('training_attempts').select('id,scenario_id,score,passed,completed_at').eq('staff_id',staffId).order('completed_at',{ascending:false})
+  if(!ae){
+   const grouped:Record<string,Attempt[]>={}
+   for(const row of (attemptRows??[]) as AttemptRow[]){
+    const key=row.scenario_id
+    const attempt:Attempt={id:row.id,score:row.score,passed:row.passed,completed_at:row.completed_at}
+    ;(grouped[key]??=[]).push(attempt)
+   }
+   setAttempts(grouped)
+  }
+  setLoading(false)
+ }
  async function start(s:Scenario){setScenario(s);setIndex(0);setAnswers([]);setSelected(null);setShowExplanation(false);setScore(0);setError(null);const {data,error}=await supabase.from('training_scenario_steps').select('id,step_order,prompt_en,prompt_fr,options,correct_option,explanation_en,explanation_fr,points').eq('scenario_id',s.id).order('step_order');if(error){setError(error.message);return}setSteps((data??[]) as Step[])}
  function choose(id:string){if(showExplanation)return;setSelected(id);setShowExplanation(true)}
  async function next(){if(!scenario||!selected||!steps[index])return;const step=steps[index];const correct=selected===step.correct_option;const nextScore=score+(correct?step.points:0);setScore(nextScore);const nextAnswers=[...answers,selected];setAnswers(nextAnswers);if(index<steps.length-1){setIndex(index+1);setSelected(null);setShowExplanation(false);return}setSaving(true);const total=steps.reduce((n,s)=>n+s.points,0);const pct=Math.round((nextScore/Math.max(total,1))*100);const passed=pct>=scenario.passing_score;const {data,error}=await supabase.from('training_attempts').insert({staff_id:staffId,clinic_id:clinicId,scenario_id:scenario.id,score:pct,passed,answers:steps.map((s,i)=>({step_id:s.id,selected:nextAnswers[i]??null,correct:nextAnswers[i]===s.correct_option})),completed_at:new Date().toISOString()}).select('id,score,passed,completed_at').single();if(error){setError(lang==='fr'?'Impossible d’enregistrer votre résultat.':'Unable to save your result.')}else setAttempts(prev=>({...prev,[scenario.id]:[data as Attempt,...(prev[scenario.id]??[])]}));setSaving(false);setIndex(steps.length)}
