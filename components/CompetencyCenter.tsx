@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Award, CheckCircle2, GraduationCap, X } from 'lucide-react'
+import { Award, CheckCircle2, CircleHelp, GraduationCap, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { StaffRole } from '@/lib/types'
 
