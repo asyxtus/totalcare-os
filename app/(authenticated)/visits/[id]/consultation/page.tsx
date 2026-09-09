@@ -68,10 +68,6 @@ export default async function ConsultationPage({
       p_doctor_id: staff.staffId,
     })
     if (startError || !newConsultationId) {
-      // A common real cause here: another doctor's request won the race
-      // to start this exact consultation a moment earlier. That's a
-      // correct outcome, not a bug — say so plainly instead of a generic
-      // failure message.
       return (
         <div>
           <p style={{ fontSize: '14px', color: 'var(--color-critical-text)' }}>
@@ -85,10 +81,6 @@ export default async function ConsultationPage({
     }
     consultationId = newConsultationId
   } else {
-    // THE OWNERSHIP CHECK: this visit is already in_consultation — verify
-    // it's actually assigned to the doctor viewing it before rendering
-    // anything. This is the real enforcement point, regardless of which
-    // queue (Doctor, Dashboard) linked here.
     const { data: isOwner } = await supabase.rpc('is_assigned_doctor_for_visit', {
       p_visit_id: id,
       p_staff_id: staff.staffId,
@@ -121,9 +113,6 @@ export default async function ConsultationPage({
     consultationId = existing.id
   }
 
-  // Whether newly created or reopened, fetch whatever's actually saved
-  // on this consultation row — the fix for the SOAP-reset bug means this
-  // may already have real content from before the lab order.
   const { data: consultationData } = await supabase
     .from('consultations')
     .select('subjective_notes, examination_notes, diagnosis, diagnosis_code, treatment_plan')
@@ -148,9 +137,6 @@ export default async function ConsultationPage({
     .limit(1)
     .maybeSingle()
 
-  // THE CONTINUITY-OF-CARE FIX: past visits for this patient, with their
-  // diagnoses, so the doctor isn't deciding blind. This was flagged
-  // explicitly in the architecture review as a real gap, not cosmetic.
   const { data: pastVisits } = await supabase
     .from('visits')
     .select('id, created_at, visit_reason, consultations(diagnosis, treatment_plan)')
@@ -186,10 +172,6 @@ export default async function ConsultationPage({
     .eq('clinic_id', visit.clinic_id)
     .eq('is_active', true)
 
-  // Billable procedures a doctor can order directly during a consultation
-  // — imaging (échographie, ECG, echocardiography...), or any other
-  // service_price the clinic has priced under a category other than
-  // "consultation" (which is reserved for check-in visit types).
   const { data: availableProcedures } = await supabase
     .from('service_prices')
     .select('id, service_name, category, price_xaf')
@@ -199,8 +181,6 @@ export default async function ConsultationPage({
     .order('category')
     .order('service_name')
 
-  // Existing lab orders/results for THIS visit — what the doctor sees
-  // when returning to a patient after labs come back.
   const { data: labOrders } = await supabase
     .from('lab_orders')
     .select('id, lab_order_items(id, item_type, status, lab_panel_id, lab_test_catalog_id, external_test_name)')
@@ -222,14 +202,11 @@ export default async function ConsultationPage({
         .in('lab_order_item_id', labOrderItemIds)
     : { data: [] }
 
-  // Private bucket — attachments need a signed URL to be viewable at all,
-  // a plain public path would just 404 or (worse) require making the
-  // bucket public, defeating the patient-data privacy point of it.
   const attachmentsWithUrls = await Promise.all(
     (labAttachments ?? []).map(async (a) => {
       const { data: signed } = await supabase.storage
         .from('lab-attachments')
-        .createSignedUrl(a.file_path, 60 * 10) // 10 minutes — long enough to view, not a permanent link
+        .createSignedUrl(a.file_path, 60 * 10)
       return { ...a, signedUrl: signed?.signedUrl ?? null }
     })
   )
@@ -245,10 +222,7 @@ export default async function ConsultationPage({
             <h1 style={{ fontSize: '18px', fontWeight: 500, margin: 0 }}>
               Consultation — {patient?.full_name}
               {visit.is_emergency && (
-                <span style={{
-                  fontSize: '11px', marginLeft: '8px', padding: '2px 8px', borderRadius: 'var(--radius-sm)',
-                  background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)', verticalAlign: 'middle',
-                }}>
+                <span style={{ fontSize: '11px', marginLeft: '8px', padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)', verticalAlign: 'middle' }}>
                   URGENCE
                 </span>
               )}
@@ -258,135 +232,82 @@ export default async function ConsultationPage({
             </p>
           </div>
         </div>
-        <a
-          href={`/print/clinical-summary/${id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            fontSize: '12px', padding: '7px 12px', borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--color-border)', background: 'var(--color-surface)',
-            color: 'var(--color-text-primary)', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0,
-          }}
-        >
-          {lang === 'fr' ? '🖨 Dossier complet' : '🖨 Full clinical record'}
-        </a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <Link
+            href={`/visits/${id}/consultation-note`}
+            style={{
+              fontSize: '12px', padding: '7px 12px', borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--color-border)', background: 'var(--color-surface)',
+              color: 'var(--color-text-primary)', textDecoration: 'none', whiteSpace: 'nowrap',
+            }}
+          >
+            {lang === 'fr' ? '📝 Voir / modifier la note SOAP' : '📝 View/Edit SOAP Note'}
+          </Link>
+          <a
+            href={`/print/clinical-summary/${id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: '12px', padding: '7px 12px', borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--color-border)', background: 'var(--color-surface)',
+              color: 'var(--color-text-primary)', textDecoration: 'none', whiteSpace: 'nowrap',
+            }}
+          >
+            {lang === 'fr' ? '🖨 Dossier complet' : '🖨 Full clinical record'}
+          </a>
+        </div>
       </div>
 
       {patient?.allergies && (
-        <div style={{
-          background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)',
-          padding: '10px 14px', borderRadius: 'var(--radius-sm)', marginBottom: '10px', fontSize: '13px', fontWeight: 500,
-        }}>
+        <div style={{ background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', marginBottom: '10px', fontSize: '13px', fontWeight: 500 }}>
           ⚠ Allergies : {patient.allergies}
         </div>
       )}
 
       {flags.length > 0 && (
-        <div style={{
-          background: 'var(--color-warning-bg)', color: 'var(--color-warning-text)',
-          padding: '10px 14px', borderRadius: 'var(--radius-sm)', marginBottom: '10px', fontSize: '13px',
-        }}>
+        <div style={{ background: 'var(--color-warning-bg)', color: 'var(--color-warning-text)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', marginBottom: '10px', fontSize: '13px' }}>
           {flags.map((f, i) => <div key={i}>{f.severity === 'critical' ? '⚠ ' : ''}{f.message_fr}</div>)}
         </div>
       )}
 
-      <div style={{
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1rem',
-      }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1rem' }}>
         <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '0 0 6px' }}>{lang === 'fr' ? 'Évaluation infirmière' : 'Nursing assessment'}</p>
-        <p style={{ fontSize: '13px', margin: '0 0 4px' }}>
-          <strong>{lang === 'fr' ? 'Motif :' : 'Reason:'}</strong> {triageAssessment?.chief_complaint || '—'}
-        </p>
-        {triageAssessment?.medical_history && (
-          <p style={{ fontSize: '13px', margin: '0 0 4px' }}><strong>{lang === 'fr' ? 'Antécédents :' : 'History:'}</strong> {triageAssessment.medical_history}</p>
-        )}
-        {triageAssessment?.social_history && (
-          <p style={{ fontSize: '13px', margin: 0 }}><strong>{lang === 'fr' ? 'Contexte social :' : 'Social context:'}</strong> {triageAssessment.social_history}</p>
-        )}
+        <p style={{ fontSize: '13px', margin: '0 0 4px' }}><strong>{lang === 'fr' ? 'Motif :' : 'Reason:'}</strong> {triageAssessment?.chief_complaint || '—'}</p>
+        {triageAssessment?.medical_history && <p style={{ fontSize: '13px', margin: '0 0 4px' }}><strong>{lang === 'fr' ? 'Antécédents :' : 'History:'}</strong> {triageAssessment.medical_history}</p>}
+        {triageAssessment?.social_history && <p style={{ fontSize: '13px', margin: 0 }}><strong>{lang === 'fr' ? 'Contexte social :' : 'Social context:'}</strong> {triageAssessment.social_history}</p>}
         {latestVitals && (
           <div style={{ display: 'flex', gap: '14px', marginTop: '10px', flexWrap: 'wrap' }}>
-            {Object.entries(VITAL_LABELS).map(([key, label]) => (
-              (latestVitals as any)[key] != null && (
-                <span key={key} style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-                  {label}: <strong style={{ color: 'var(--color-text-primary)' }}>{(latestVitals as any)[key]}</strong>
-                </span>
-              )
-            ))}
+            {Object.entries(VITAL_LABELS).map(([key, label]) => ((latestVitals as any)[key] != null && <span key={key} style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>{label}: <strong style={{ color: 'var(--color-text-primary)' }}>{(latestVitals as any)[key]}</strong></span>))}
           </div>
         )}
       </div>
 
-      {/* Lab results for this visit — critical flags always shown regardless
-          of verification status, per the design decision from the Lab module:
-          a dangerous value shouldn't wait on a bureaucratic verification step. */}
       {(labResults && labResults.length > 0) || attachmentsWithUrls.length > 0 ? (
-        <div style={{
-          background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1rem',
-        }}>
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1rem' }}>
           <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>
             Résultats de laboratoire
-            {(labOrders ?? []).map((o: any) => (
-              <a key={o.id} href={`/print/lab-orders/${o.id}`} target="_blank" rel="noopener noreferrer"
-                 style={{ fontSize: '11px', color: 'var(--color-accent)', marginLeft: '10px' }}>
-                Imprimer le rapport →
-              </a>
-            ))}
+            {(labOrders ?? []).map((o: any) => <a key={o.id} href={`/print/lab-orders/${o.id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--color-accent)', marginLeft: '10px' }}>Imprimer le rapport →</a>)}
           </p>
           {(labResults ?? []).map((r: any) => (
             <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', fontSize: '13px' }}>
-              <span>
-                {(lang === 'en' && r.lab_test_catalog?.name_en) ? r.lab_test_catalog.name_en : r.lab_test_catalog?.name_fr}: <strong>{r.numeric_value ?? r.qualitative_value}</strong>
-                {r.lab_test_catalog?.unit ? ` ${r.lab_test_catalog.unit}` : ''}
-              </span>
+              <span>{(lang === 'en' && r.lab_test_catalog?.name_en) ? r.lab_test_catalog.name_en : r.lab_test_catalog?.name_fr}: <strong>{r.numeric_value ?? r.qualitative_value}</strong>{r.lab_test_catalog?.unit ? ` ${r.lab_test_catalog.unit}` : ''}</span>
               <span style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                {r.is_critical && (
-                  <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: 'var(--radius-sm)', background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)' }}>
-                    CRITIQUE
-                  </span>
-                )}
-                {r.is_abnormal && !r.is_critical && (
-                  <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: 'var(--radius-sm)', background: 'var(--color-warning-bg)', color: 'var(--color-warning-text)' }}>
-                    Anormal
-                  </span>
-                )}
-                {!r.verified_at && (
-                  <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>(non validé)</span>
-                )}
+                {r.is_critical && <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: 'var(--radius-sm)', background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)' }}>CRITIQUE</span>}
+                {r.is_abnormal && !r.is_critical && <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: 'var(--radius-sm)', background: 'var(--color-warning-bg)', color: 'var(--color-warning-text)' }}>Anormal</span>}
+                {!r.verified_at && <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>(non validé)</span>}
               </span>
             </div>
           ))}
-          {attachmentsWithUrls.map((a) => a.signedUrl && (
-            <div key={a.id} style={{ padding: '4px 0' }}>
-              <a href={a.signedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: 'var(--color-accent)' }}>
-                📎 Voir le fichier joint (résultat imprimé)
-              </a>
-            </div>
-          ))}
+          {attachmentsWithUrls.map((a) => a.signedUrl && <div key={a.id} style={{ padding: '4px 0' }}><a href={a.signedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: 'var(--color-accent)' }}>📎 Voir le fichier joint (résultat imprimé)</a></div>)}
         </div>
       ) : null}
 
-      {/* Past visit history — the continuity-of-care fix */}
-      <div style={{
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1.25rem',
-      }}>
-        <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>
-          {lang === 'fr' ? 'Visites précédentes' : 'Previous visits'}
-        </p>
-        {(!pastVisits || pastVisits.length === 0) && (
-          <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
-            {lang === 'fr' ? 'Aucune visite antérieure.' : 'No previous visits.'}
-          </p>
-        )}
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1.25rem' }}>
+        <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>{lang === 'fr' ? 'Visites précédentes' : 'Previous visits'}</p>
+        {(!pastVisits || pastVisits.length === 0) && <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>{lang === 'fr' ? 'Aucune visite antérieure.' : 'No previous visits.'}</p>}
         {pastVisits && pastVisits.length > 0 && pastVisits.map((v: any) => (
           <div key={v.id} style={{ fontSize: '13px', padding: '6px 0', borderBottom: '1px solid var(--color-border-subtle)' }}>
-            <span style={{ color: 'var(--color-text-secondary)' }}>
-              {new Date(v.created_at).toLocaleDateString(lang==='fr'?'fr-FR':'en-US')}
-            </span>
-            {' — '}
-            {v.consultations?.[0]?.diagnosis || v.visit_reason || 'Sans diagnostic enregistré'}
+            <span style={{ color: 'var(--color-text-secondary)' }}>{new Date(v.created_at).toLocaleDateString(lang==='fr'?'fr-FR':'en-US')}</span>{' — '}{v.consultations?.[0]?.diagnosis || v.visit_reason || 'Sans diagnostic enregistré'}
           </div>
         ))}
       </div>
