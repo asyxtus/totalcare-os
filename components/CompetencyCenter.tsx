@@ -24,11 +24,12 @@ export default function CompetencyCenter({staffId,clinicId,staffRole,lang}:{staf
   const {data:attemptRows,error:ae}=await supabase.from('training_attempts').select('id,scenario_id,score,passed,completed_at').eq('staff_id',staffId).order('completed_at',{ascending:false})
   if(!ae){
    const grouped:Record<string,Attempt[]>={}
-   for(const row of (attemptRows??[]) as AttemptRow[]){
-    const key=row.scenario_id
+   const rows:AttemptRow[]=(attemptRows??[]) as AttemptRow[]
+   rows.forEach((row:AttemptRow)=>{
+    const key:string=row.scenario_id
     const attempt:Attempt={id:row.id,score:row.score,passed:row.passed,completed_at:row.completed_at}
     ;(grouped[key]??=[]).push(attempt)
-   }
+   })
    setAttempts(grouped)
   }
   setLoading(false)
