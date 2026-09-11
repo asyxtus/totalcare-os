@@ -55,7 +55,10 @@ export async function listPendingOfflineOperations(): Promise<OutboxEntry[]> {
 }
 
 export async function countPendingOfflineOperations(): Promise<number> {
-  return (await listPendingOfflineOperations()).length
+  const entries = await getAllRecords<OutboxEntry>('outbox')
+  return entries.filter((entry) =>
+    entry.status === 'pending' || entry.status === 'processing' || entry.status === 'failed'
+  ).length
 }
 
 export async function markOfflineOperationProcessing(id: string): Promise<void> {
