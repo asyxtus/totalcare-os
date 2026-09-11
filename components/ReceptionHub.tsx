@@ -8,7 +8,7 @@ import AppointmentsList from './AppointmentsList'
 import ReminderCallList from './ReminderCallList'
 import DirectLaboratoryTab from './DirectLaboratoryTab'
 import DirectImagingTab from './DirectImagingTab'
-import { useNetworkStatus } from '@/lib/hooks/useNetworkStatus'
+import { useNetworkStatus, usePendingSyncCount } from '@/lib/hooks/useNetworkStatus'
 import { hasWorkingConnection } from '@/lib/offline/connectivity'
 
 type Tab = 'queue' | 'appointments' | 'reminders' | 'direct_lab' | 'direct_imaging'
@@ -22,7 +22,8 @@ export default function ReceptionHub({ initialTab, queueProps, appointmentsProps
   directImagingProps: React.ComponentProps<typeof DirectImagingTab>
 }) {
   const [tab, setTab] = useState<Tab>(initialTab)
-  const { online, pendingCount } = useNetworkStatus()
+  const online = useNetworkStatus()
+  const pendingCount = usePendingSyncCount()
   const [serverReachable, setServerReachable] = useState<boolean | null>(null)
   const lang = queueProps.lang
   const pendingCalls = reminderProps.rows.filter(r => !r.reminder_called_at).length
