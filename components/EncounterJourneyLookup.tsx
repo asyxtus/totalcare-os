@@ -59,13 +59,14 @@ export default function EncounterJourneyLookup({lang,clinicId}:{lang:'fr'|'en';c
    const result=await searchPatientJourney(query)
    if(result.data){
     setRows(result.data)
-    // Merge successful results into a small, clinic-scoped local working set.
-    const key=cacheKey(clinicId)
-    const existing=await getOfflineCache<PatientJourneyResult[]>(key)
-    const merged=new Map<string,PatientJourneyResult>()
-    for(const row of existing??[]) merged.set(row.patient.id,row)
-    for(const row of result.data) merged.set(row.patient.id,row)
-    await setOfflineCache(key,Array.from(merged.values()).slice(-100),JOURNEY_CACHE_TTL_MS)
+    if(result.data.length){
+     const key=cacheKey(clinicId)
+     const existing=await getOfflineCache<PatientJourneyResult[]>(key)
+     const merged=new Map<string,PatientJourneyResult>()
+     for(const row of existing??[]) merged.set(row.patient.id,row)
+     for(const row of result.data) merged.set(row.patient.id,row)
+     await setOfflineCache(key,Array.from(merged.values()).slice(-100),JOURNEY_CACHE_TTL_MS)
+    }
     setBusy(false)
     return
    }
