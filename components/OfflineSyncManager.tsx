@@ -18,6 +18,7 @@ import { hasWorkingConnection, recordOfflineRequestFailure, recordOfflineRequest
 
 const DUPLICATE_REVIEW = '[DUPLICATE_REVIEW]'
 const SYNC_LOCK = 'totalcare:offline-sync'
+export const SYNC_REQUEST_EVENT = 'totalcare:offline-sync-requested'
 
 export default function OfflineSyncManager() {
   const running = useRef(false)
@@ -80,8 +81,6 @@ export default function OfflineSyncManager() {
           } catch (error) {
             await markOfflineOperationFailed(entry.id, error)
             await recordOfflineRequestFailure()
-            // Stop this batch on the first transport/server failure. The
-            // outbox records the retry time so reconnects do not hammer it.
             break
           }
         }
@@ -91,8 +90,6 @@ export default function OfflineSyncManager() {
       }
     }
 
-    // Multiple browser tabs can mount AppShell. Web Locks prevents two tabs
-    // from sending the same outbox operation concurrently when supported.
     if ('locks' in navigator && navigator.locks) {
       await navigator.locks.request(SYNC_LOCK, { ifAvailable: true }, async (lock) => {
         if (lock) await run()
@@ -105,8 +102,13 @@ export default function OfflineSyncManager() {
   useEffect(() => {
     void sync()
     const handleOnline = () => { void sync() }
+    const handleSyncRequest = () => { void sync() }
     window.addEventListener('online', handleOnline)
-    return () => window.removeEventListener('online', handleOnline)
+    window.addEventListener(SYNC_REQUEST_EVENT, handleSyncRequest)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener(SYNC_REQUEST_EVENT, handleSyncRequest)
+    }
   }, [sync])
 
   return null
