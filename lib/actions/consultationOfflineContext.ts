@@ -3,6 +3,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentStaff } from '@/lib/auth/getCurrentStaff'
 
+export interface OfflineMedicationProduct {
+  id: string
+  name: string
+  dosageForm: string | null
+  drugClassName: string | null
+  isAntibiotic: boolean
+  onHand: number
+}
+
 export interface OfflineConsultationContext {
   visitId: string
   consultationId: string
@@ -15,6 +24,7 @@ export interface OfflineConsultationContext {
   diagnosis: string
   diagnosisCode: string
   treatmentPlan: string
+  medications: OfflineMedicationProduct[]
 }
 
 export async function getOfflineConsultationContext(visitId: string): Promise<OfflineConsultationContext | null> {
@@ -43,6 +53,16 @@ export async function getOfflineConsultationContext(visitId: string): Promise<Of
   if (!consultation || consultation.completed_at) return null
   if (consultation.doctor_id !== staff.staffId && staff.role !== 'admin') return null
 
+  const { data: products } = await supabase.rpc('get_products_with_stock', { p_clinic_id: staff.clinicId })
+  const medications: OfflineMedicationProduct[] = (products ?? []).map((p: any) => ({
+    id: p.product_id,
+    name: p.name,
+    dosageForm: p.dosage_form ?? null,
+    drugClassName: p.drug_class_name ?? null,
+    isAntibiotic: Boolean(p.is_antibiotic),
+    onHand: Number(p.on_hand ?? 0),
+  }))
+
   const patient = visit.patients as any
   return {
     visitId: visit.id,
@@ -56,5 +76,6 @@ export async function getOfflineConsultationContext(visitId: string): Promise<Of
     diagnosis: consultation.diagnosis ?? '',
     diagnosisCode: consultation.diagnosis_code ?? '',
     treatmentPlan: consultation.treatment_plan ?? '',
+    medications,
   }
 }
