@@ -125,7 +125,11 @@ export default function OfflineSyncManager() {
             } else {
               const result = await saveConsultationIdempotent(
                 entry.id,
-                entry.payload as OfflineConsultationPayload,
+                {
+                  ...(entry.payload as OfflineConsultationPayload),
+                  clinicId: entry.clinicId,
+                  staffId: entry.staffId,
+                },
               )
 
               if (result.blocked) {
