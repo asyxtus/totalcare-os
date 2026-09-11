@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ListOrdered, CalendarDays, PhoneCall, FlaskConical, ScanLine } from 'lucide-react'
 import { TabBar, type TabDef } from './ui'
 import QueueTab from './QueueTab'
@@ -8,6 +8,8 @@ import AppointmentsList from './AppointmentsList'
 import ReminderCallList from './ReminderCallList'
 import DirectLaboratoryTab from './DirectLaboratoryTab'
 import DirectImagingTab from './DirectImagingTab'
+import { useNetworkStatus } from '@/lib/hooks/useNetworkStatus'
+import { hasWorkingConnection } from '@/lib/offline/connectivity'
 
 type Tab = 'queue' | 'appointments' | 'reminders' | 'direct_lab' | 'direct_imaging'
 
@@ -20,8 +22,30 @@ export default function ReceptionHub({ initialTab, queueProps, appointmentsProps
   directImagingProps: React.ComponentProps<typeof DirectImagingTab>
 }) {
   const [tab, setTab] = useState<Tab>(initialTab)
+  const { online, pendingCount } = useNetworkStatus()
+  const [serverReachable, setServerReachable] = useState<boolean | null>(null)
   const lang = queueProps.lang
   const pendingCalls = reminderProps.rows.filter(r => !r.reminder_called_at).length
+
+  useEffect(() => {
+    let cancelled = false
+    const check = async () => {
+      const reachable = await hasWorkingConnection(4000)
+      if (!cancelled) setServerReachable(reachable)
+    }
+    void check()
+    const timer = window.setInterval(() => void check(), 30000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [online])
+
+  const connected = online && serverReachable !== false
+  const statusText = connected
+    ? (pendingCount > 0
+      ? (lang === 'fr' ? `En ligne · Synchronisation de ${pendingCount} opération${pendingCount > 1 ? 's' : ''}` : `Online · Syncing ${pendingCount} operation${pendingCount > 1 ? 's' : ''}`)
+      : (lang === 'fr' ? 'En ligne · Synchronisé' : 'Online · Synced'))
+    : (lang === 'fr' ? 'Hors ligne · Travail local' : 'Offline · Working locally')
+  const statusBg = connected ? (pendingCount > 0 ? 'var(--color-warning-bg)' : 'var(--color-success-bg)') : 'var(--color-error-bg)'
+  const statusColor = connected ? (pendingCount > 0 ? 'var(--color-warning-text)' : 'var(--color-success-text)') : 'var(--color-error-text)'
 
   const tabs: TabDef<Tab>[] = [
     { id: 'queue', label: lang === 'fr' ? "File d'attente" : 'Queue', icon: ListOrdered },
@@ -54,6 +78,11 @@ export default function ReceptionHub({ initialTab, queueProps, appointmentsProps
             {lang === 'fr' ? 'Nouvelle imagerie directe' : 'New direct imaging'}
           </button>
         </div>
+      </div>
+
+      <div role="status" aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 12, padding: '6px 10px', borderRadius: 999, background: statusBg, color: statusColor, fontSize: 11, fontWeight: 600 }}>
+        <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: 'currentColor' }} />
+        {statusText}
       </div>
 
       <TabBar tabs={tabs} active={tab} onChange={setTab} className="reception-tabs" style={{ overflowX: 'visible', flexWrap: 'wrap' }} />
