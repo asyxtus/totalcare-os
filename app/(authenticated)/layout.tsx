@@ -29,7 +29,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
     >
       <ConsultationFollowupScheduler />
       <ConsultationLabBillingBridge />
-      <EncounterJourneyLookup lang={staff.preferredLanguage} />
+      <EncounterJourneyLookup lang={staff.preferredLanguage} clinicId={staff.clinicId} />
       {children}
     </AppShell>
   )
