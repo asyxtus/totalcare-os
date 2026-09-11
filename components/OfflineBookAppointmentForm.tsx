@@ -20,7 +20,7 @@ const STR = {
     doctor: 'Médecin', unassigned: 'Non assigné', consultType: 'Type de consultation', unspecified: 'Non précisé', reason: 'Motif',
     reasonPh: 'ex. Contrôle tensionnel, suivi…', selectPatient: 'Sélectionnez un patient dans la liste.', create: 'Créer le rendez-vous',
     queued: 'Rendez-vous enregistré localement. Il sera synchronisé automatiquement dès que la connexion revient.', error: 'Impossible de créer le rendez-vous. La synchronisation réessaiera automatiquement.',
-    cancel: 'Annuler', locale: 'fr-FR', offlineResults: 'Résultats locaux — vérifiez que le patient est toujours actif.',
+    cancel: 'Annuler', locale: 'fr-FR', offlineResults: 'Résultats locaux — vérifiez que le patient est toujours actif.', invalidDateTime: 'Veuillez saisir une date et une heure valides.',
   },
   en: {
     title: 'New appointment', patient: 'Patient *', change: 'Change', searchPh: 'Name, code, or phone…', searching: 'Searching…',
@@ -28,7 +28,7 @@ const STR = {
     doctor: 'Doctor', unassigned: 'Unassigned', consultType: 'Consultation type', unspecified: 'Not specified', reason: 'Reason',
     reasonPh: 'e.g. Blood pressure follow-up…', selectPatient: 'Select a patient from the list.', create: 'Create appointment',
     queued: 'Appointment saved locally. It will synchronize automatically when the connection returns.', error: 'Could not create the appointment. Synchronization will retry automatically.',
-    cancel: 'Cancel', locale: 'en-US', offlineResults: 'Local results — verify that the patient is still active.',
+    cancel: 'Cancel', locale: 'en-US', offlineResults: 'Local results — verify that the patient is still active.', invalidDateTime: 'Please enter a valid date and time.',
   },
 } as const
 
@@ -85,11 +85,21 @@ export default function OfflineBookAppointmentForm({
     setError(null); setQueued(false); setPending(true)
     const date = String(formData.get('date') ?? '').trim(); const time = String(formData.get('time') ?? '').trim()
     const duration = Number.parseInt(String(formData.get('duration_minutes') ?? '30'), 10)
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+      setError(t.invalidDateTime); setPending(false); return
+    }
+
+    const scheduledDate = new Date(`${date}T${time}:00`)
+    if (!Number.isFinite(scheduledDate.getTime())) {
+      setError(t.invalidDateTime); setPending(false); return
+    }
+
     const payload: OfflineAppointmentPayload = {
       patient_id: selected.id,
       doctor_id: String(formData.get('doctor_id') ?? '').trim(),
       service_price_id: String(formData.get('service_price_id') ?? '').trim(),
-      scheduled_at: new Date(`${date}T${time}:00`).toISOString(),
+      scheduled_at: scheduledDate.toISOString(),
       duration_minutes: Number.isFinite(duration) && duration > 0 ? duration : 30,
       reason: String(formData.get('reason') ?? '').trim(),
     }
