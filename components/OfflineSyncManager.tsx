@@ -56,6 +56,15 @@ export default function OfflineSyncManager() {
                 continue
               }
 
+              if (result.blocked) {
+                await markOfflineOperationBlocked(
+                  entry.id,
+                  result.error ?? 'Patient registration requires review before synchronization.',
+                )
+                changed = true
+                continue
+              }
+
               if (result.error || !result.newPatientId) {
                 await markOfflineOperationFailed(entry.id, result.error ?? 'Patient registration returned no patient ID')
                 await recordOfflineRequestFailure()
