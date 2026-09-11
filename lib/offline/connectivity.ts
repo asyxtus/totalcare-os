@@ -22,20 +22,21 @@ export function getConnectivitySnapshot() {
 export async function hasWorkingConnection(timeoutMs = 5000): Promise<boolean> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return false
 
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => controller.abort(), timeoutMs)
     const response = await fetch('/api/health', {
       method: 'HEAD',
       cache: 'no-store',
       signal: controller.signal,
     })
-    window.clearTimeout(timer)
     if (!response.ok) throw new Error(`Health check failed: ${response.status}`)
     recordOfflineRequestSuccess()
     return true
   } catch {
     recordOfflineRequestFailure()
     return false
+  } finally {
+    window.clearTimeout(timer)
   }
 }
