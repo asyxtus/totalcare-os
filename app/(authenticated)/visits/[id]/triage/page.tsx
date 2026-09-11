@@ -48,10 +48,7 @@ export default async function TriagePage({
           <h1 style={{ fontSize: '18px', fontWeight: 500, margin: 0 }}>
             Triage — {patient?.full_name}
             {visit.is_emergency && (
-              <span style={{
-                fontSize: '11px', marginLeft: '8px', padding: '2px 8px', borderRadius: 'var(--radius-sm)',
-                background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)', verticalAlign: 'middle',
-              }}>
+              <span style={{ fontSize: '11px', marginLeft: '8px', padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)', verticalAlign: 'middle' }}>
                 URGENCE
               </span>
             )}
@@ -64,16 +61,12 @@ export default async function TriagePage({
       </div>
 
       {patient?.allergies && (
-        <div style={{
-          background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)',
-          padding: '10px 14px', borderRadius: 'var(--radius-sm)', marginBottom: '1rem',
-          fontSize: '13px', fontWeight: 500,
-        }}>
+        <div style={{ background: 'var(--color-critical-bg)', color: 'var(--color-critical-text)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '13px', fontWeight: 500 }}>
           ⚠ Allergies : {patient.allergies}
         </div>
       )}
 
-      <TriageForm visitId={visit.id} clinicId={visit.clinic_id} />
+      <TriageForm visitId={visit.id} clinicId={visit.clinic_id} staffId={staff.staffId} />
     </div>
   )
 }
