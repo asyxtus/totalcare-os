@@ -6,7 +6,7 @@
 export const OFFLINE_DB_NAME = 'totalcare-offline'
 export const OFFLINE_DB_VERSION = 1
 
-export type OutboxStatus = 'pending' | 'processing' | 'failed'
+export type OutboxStatus = 'pending' | 'processing' | 'failed' | 'blocked'
 
 export interface OutboxEntry<T = unknown> {
   id: string
@@ -19,6 +19,7 @@ export interface OutboxEntry<T = unknown> {
   attempts: number
   status: OutboxStatus
   lastError?: string
+  nextAttemptAt?: string
 }
 
 export interface CachedRecord<T = unknown> {
