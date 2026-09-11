@@ -21,7 +21,6 @@ security definer
 set search_path = public
 as $$
 declare
-  v_staff_clinic uuid;
   v_saved record;
   v_appointment_id uuid;
   v_duration integer;
@@ -30,21 +29,19 @@ begin
     raise exception 'Operation ID is required';
   end if;
 
-  select s.clinic_id into v_staff_clinic
-  from public.staff s
-  where s.id = p_staff_id
-    and s.clinic_id = p_clinic_id
-    and s.auth_user_id = auth.uid()
-    and s.is_active = true
-  limit 1;
-
-  if not found then
+  if not exists (
+    select 1 from public.staff s
+    where s.id = p_staff_id
+      and s.clinic_id = p_clinic_id
+      and s.auth_user_id = auth.uid()
+      and s.is_active = true
+  ) then
     raise exception 'Staff authorization failed';
   end if;
 
-  -- The insert is intentionally before the appointment write. If two tabs
-  -- retry the same operation concurrently, the unique key makes the second
-  -- insert wait for the first transaction and then observe its completed row.
+  -- The unique key on (clinic_id, operation_id) makes concurrent retries
+  -- converge on one idempotency row. If the first transaction rolls back,
+  -- the retry can safely create the appointment instead.
   insert into public.offline_mutation_idempotency (
     clinic_id, operation_id, operation_type, staff_id, status, response
   ) values (
@@ -62,8 +59,9 @@ begin
     raise exception 'Operation ID is already used for another operation';
   end if;
 
-  if v_saved.patient_id is not null then
-    return query select v_saved.patient_id, true;
+  if nullif(v_saved.response->>'appointment_id', '') is not null then
+    return query select (v_saved.response->>'appointment_id')::uuid, true;
+    return;
   end if;
 
   if not exists (
@@ -102,8 +100,7 @@ begin
   ) returning id into v_appointment_id;
 
   update public.offline_mutation_idempotency
-  set patient_id = v_appointment_id,
-      response = jsonb_build_object('appointment_id', v_appointment_id),
+  set response = jsonb_build_object('appointment_id', v_appointment_id),
       updated_at = now()
   where clinic_id = p_clinic_id and operation_id = p_operation_id;
 
