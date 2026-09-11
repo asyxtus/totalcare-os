@@ -43,7 +43,7 @@ export default function OfflineNewPatientForm({ insurers, clinicId, staffId }: {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [queued, setQueued] = useState(false)
-  const [duplicate, setDuplicate] = useState<{ id: string; name: string; code: string; payload: OfflinePatientRegistrationPayload } | null>(null)
+  const [duplicate, setDuplicate] = useState<{ id: string; name: string; code: string; operationId: string; payload: OfflinePatientRegistrationPayload } | null>(null)
 
   const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 14, background: 'var(--color-surface)', color: 'var(--color-text-primary)' }
   const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }
@@ -60,8 +60,11 @@ export default function OfflineNewPatientForm({ insurers, clinicId, staffId }: {
     }
   }
 
-  async function submitPayload(payload: OfflinePatientRegistrationPayload) {
-    const operationId = crypto.randomUUID()
+  async function submitPayload(payload: OfflinePatientRegistrationPayload, existingOperationId?: string) {
+    // A duplicate warning is a two-step transaction. Reusing the original
+    // operation ID on confirmation makes the confirmation idempotent and
+    // prevents the warning row from becoming orphaned under a second ID.
+    const operationId = existingOperationId ?? crypto.randomUUID()
     const reachable = await hasWorkingConnection(2500)
 
     if (!reachable) {
@@ -74,7 +77,7 @@ export default function OfflineNewPatientForm({ insurers, clinicId, staffId }: {
     try {
       const result = await registerPatientIdempotent(operationId, payload)
       if (result.duplicateWarning && result.existingPatient) {
-        setDuplicate({ id: result.existingPatient.id, name: result.existingPatient.fullName, code: result.existingPatient.patientCode, payload })
+        setDuplicate({ id: result.existingPatient.id, name: result.existingPatient.fullName, code: result.existingPatient.patientCode, operationId, payload })
         setSubmitting(false)
         return
       }
@@ -83,6 +86,7 @@ export default function OfflineNewPatientForm({ insurers, clinicId, staffId }: {
         setSubmitting(false)
         return
       }
+      setDuplicate(null)
       router.push(`/reception?tab=appointments&new_patient=${result.newPatientId}`)
     } catch {
       // A transport exception after the reachability probe is exactly the
@@ -102,7 +106,7 @@ export default function OfflineNewPatientForm({ insurers, clinicId, staffId }: {
   async function handleConfirmDuplicate() {
     if (!duplicate) return
     setSubmitting(true)
-    await submitPayload({ ...duplicate.payload, confirm_duplicate: true })
+    await submitPayload({ ...duplicate.payload, confirm_duplicate: true }, duplicate.operationId)
   }
 
   return (
