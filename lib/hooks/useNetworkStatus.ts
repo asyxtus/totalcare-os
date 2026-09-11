@@ -1,13 +1,10 @@
 'use client'
 
 // lib/hooks/useNetworkStatus.ts
-// Browser connectivity plus the durable offline outbox count.
-// navigator.onLine is a useful signal, but it is not treated as proof that
-// Supabase is reachable. Actual sync success/failure will be recorded by the
-// sync engine when critical workflows are wired into it.
+// Browser connectivity plus durable offline outbox counters.
 
 import { useEffect, useState } from 'react'
-import { countPendingOfflineOperations, subscribeToOutboxChanges } from '@/lib/offline/outbox'
+import { countBlockedOfflineOperations, countPendingOfflineOperations, subscribeToOutboxChanges } from '@/lib/offline/outbox'
 
 export function useNetworkStatus() {
   const [isOnline, setIsOnline] = useState(true)
@@ -42,12 +39,37 @@ export function usePendingSyncCount(): number {
         if (!cancelled) setCount(next)
       } catch {
         // IndexedDB can be unavailable (private browsing, old browsers, etc.).
-        // The application remains usable; it simply has no local outbox count.
       }
     }
 
-    refresh()
-    const unsubscribe = subscribeToOutboxChanges(refresh)
+    void refresh()
+    const unsubscribe = subscribeToOutboxChanges(() => { void refresh() })
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [])
+
+  return count
+}
+
+export function useBlockedSyncCount(): number {
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const refresh = async () => {
+      try {
+        const next = await countBlockedOfflineOperations()
+        if (!cancelled) setCount(next)
+      } catch {
+        // IndexedDB can be unavailable; there is simply no local count to show.
+      }
+    }
+
+    void refresh()
+    const unsubscribe = subscribeToOutboxChanges(() => { void refresh() })
     return () => {
       cancelled = true
       unsubscribe()
