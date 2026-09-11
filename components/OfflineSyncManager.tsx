@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { getAllRecords, putRecord, type OutboxEntry } from '@/lib/offline/db'
+import { getAllRecords, type OutboxEntry } from '@/lib/offline/db'
 import {
   acknowledgeOfflineOperation,
   listPendingOfflineOperations,
+  markOfflineOperationBlocked,
   markOfflineOperationFailed,
   markOfflineOperationProcessing,
 } from '@/lib/offline/outbox'
@@ -33,14 +34,6 @@ export default function OfflineSyncManager() {
       try {
         if (!(await hasWorkingConnection(4000))) return
 
-        // Failed operations are retried on a later reconnect, except duplicate
-        // conflicts which require a human decision and must never auto-repeat.
-        const all = await getAllRecords<OutboxEntry>('outbox')
-        for (const entry of all) {
-          if (entry.status !== 'failed' || entry.lastError?.startsWith(DUPLICATE_REVIEW)) continue
-          await putRecord('outbox', { ...entry, status: 'pending', updatedAt: new Date().toISOString() })
-        }
-
         const pending = await listPendingOfflineOperations()
         for (const entry of pending) {
           if (entry.operation !== 'patient-registration' && entry.operation !== 'appointment-booking') continue
@@ -55,10 +48,11 @@ export default function OfflineSyncManager() {
 
               if (result.duplicateWarning) {
                 const patient = result.existingPatient
-                await markOfflineOperationFailed(
+                await markOfflineOperationBlocked(
                   entry.id,
                   `${DUPLICATE_REVIEW} ${patient?.fullName ?? 'Existing patient'} (${patient?.patientCode ?? 'unknown code'}). Review before retrying.`,
                 )
+                changed = true
                 continue
               }
 
@@ -86,8 +80,8 @@ export default function OfflineSyncManager() {
           } catch (error) {
             await markOfflineOperationFailed(entry.id, error)
             await recordOfflineRequestFailure()
-            // Stop this batch on the first transport failure; the next reconnect
-            // will resume in creation order instead of hammering the server.
+            // Stop this batch on the first transport/server failure. The
+            // outbox records the retry time so reconnects do not hammer it.
             break
           }
         }
