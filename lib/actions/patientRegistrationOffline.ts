@@ -21,6 +21,7 @@ export interface OfflinePatientRegistrationPayload {
   policy_number: string
   policyholder_name: string
   confirm_duplicate?: boolean
+  client_operation_id?: string
 }
 
 export interface OfflinePatientRegistrationResult {
@@ -31,19 +32,13 @@ export interface OfflinePatientRegistrationResult {
   replayed?: boolean
 }
 
-function text(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
-}
+function text(value: unknown): string { return typeof value === 'string' ? value.trim() : '' }
 
-export async function registerPatientIdempotent(
-  operationId: string,
-  payload: OfflinePatientRegistrationPayload,
-): Promise<OfflinePatientRegistrationResult> {
+export async function registerPatientIdempotent(operationId: string, payload: OfflinePatientRegistrationPayload): Promise<OfflinePatientRegistrationResult> {
   const staff = await getCurrentStaff()
   const supabase = await createClient()
   const lang = staff.preferredLanguage
-
-  const operation = text(operationId)
+  const operation = text(operationId || payload.client_operation_id)
   const fullName = text(payload.full_name)
   const sex = text(payload.sex)
   const dateOfBirth = text(payload.date_of_birth)
@@ -65,40 +60,20 @@ export async function registerPatientIdempotent(
   if (!operation) return { error: lang === 'fr' ? 'Identifiant de synchronisation manquant.' : 'Sync operation ID is missing.' }
   if (!fullName) return { error: lang === 'fr' ? 'Le nom complet est requis.' : 'Full name is required.' }
   if (!dateOfBirth && !estimatedAge) return { error: lang === 'fr' ? 'Indiquez soit la date de naissance, soit un âge estimé.' : 'Provide either a date of birth or an estimated age.' }
-  if (dateOfBirth && estimatedAge) return { error: lang === 'fr' ? 'Utilisez soit la date de naissance, soit l’âge estimé, pas les deux.' : 'Use either date of birth or estimated age, not both.' }
+  if (dateOfBirth && estimatedAge) return { error: lang === 'fr' ? 'Utilisez soit la date de naissance, soit l’âge estimé.' : 'Use either date of birth or estimated age, not both.' }
 
   const estimatedAgeNumber = estimatedAge ? Number.parseInt(estimatedAge, 10) : null
-  if (estimatedAge && (estimatedAgeNumber === null || Number.isNaN(estimatedAgeNumber) || estimatedAgeNumber < 0 || estimatedAgeNumber > 130)) {
-    return { error: lang === 'fr' ? 'Âge estimé invalide.' : 'Invalid estimated age.' }
-  }
-
-  if (!['cash', 'employer_scheme', 'cnps', 'private_insurance'].includes(paymentCategory)) {
-    return { error: lang === 'fr' ? 'Catégorie de paiement invalide.' : 'Invalid payment category.' }
-  }
-  if (paymentCategory !== 'cash' && (!insurerId || !policyNumber)) {
-    return { error: lang === 'fr' ? 'Sélectionnez un assureur et indiquez le numéro de police.' : 'Select an insurer and provide a policy number.' }
-  }
+  if (estimatedAge && (estimatedAgeNumber === null || Number.isNaN(estimatedAgeNumber) || estimatedAgeNumber < 0 || estimatedAgeNumber > 130)) return { error: lang === 'fr' ? 'Âge estimé invalide.' : 'Invalid estimated age.' }
+  if (!['cash', 'employer_scheme', 'cnps', 'private_insurance'].includes(paymentCategory)) return { error: lang === 'fr' ? 'Catégorie de paiement invalide.' : 'Invalid payment category.' }
+  if (paymentCategory !== 'cash' && (!insurerId || !policyNumber)) return { error: lang === 'fr' ? 'Sélectionnez un assureur et indiquez le numéro de police.' : 'Select an insurer and provide a policy number.' }
 
   const { data, error } = await supabase.rpc('register_patient_idempotent', {
-    p_operation_id: operation,
-    p_clinic_id: staff.clinicId,
-    p_staff_id: staff.staffId,
-    p_full_name: fullName,
-    p_sex: sex || null,
-    p_date_of_birth: dateOfBirth || null,
-    p_estimated_age: estimatedAgeNumber,
-    p_national_id_number: nationalIdNumber || null,
-    p_phone: phone || null,
-    p_quartier: quartier || null,
-    p_city: city || null,
-    p_next_of_kin_name: nextOfKinName || null,
-    p_next_of_kin_phone: nextOfKinPhone || null,
-    p_allergies: allergies || null,
-    p_chronic_conditions: chronicConditions || null,
-    p_payment_category: paymentCategory,
-    p_insurer_id: insurerId || null,
-    p_policy_number: policyNumber || null,
-    p_policyholder_name: policyholderName || null,
+    p_operation_id: operation, p_clinic_id: staff.clinicId, p_staff_id: staff.staffId, p_full_name: fullName,
+    p_sex: sex || null, p_date_of_birth: dateOfBirth || null, p_estimated_age: estimatedAgeNumber,
+    p_national_id_number: nationalIdNumber || null, p_phone: phone || null, p_quartier: quartier || null,
+    p_city: city || null, p_next_of_kin_name: nextOfKinName || null, p_next_of_kin_phone: nextOfKinPhone || null,
+    p_allergies: allergies || null, p_chronic_conditions: chronicConditions || null, p_payment_category: paymentCategory,
+    p_insurer_id: insurerId || null, p_policy_number: policyNumber || null, p_policyholder_name: policyholderName || null,
     p_confirm_duplicate: confirmDuplicate,
   })
 
@@ -109,18 +84,10 @@ export async function registerPatientIdempotent(
 
   const result = data?.[0]
   if (!result) return { error: lang === 'fr' ? "Réponse d'enregistrement invalide." : 'Invalid registration response.' }
-
-  if (result.duplicate_found) {
-    return {
-      duplicateWarning: true,
-      existingPatient: {
-        id: result.existing_patient_id,
-        fullName: result.existing_full_name,
-        patientCode: result.existing_patient_code,
-      },
-      replayed: result.idempotent_replay,
-    }
+  if (result.duplicate_found) return {
+    duplicateWarning: true,
+    existingPatient: { id: result.existing_patient_id, fullName: result.existing_full_name, patientCode: result.existing_patient_code },
+    replayed: result.idempotent_replay,
   }
-
   return { newPatientId: result.new_patient_id, replayed: result.idempotent_replay }
 }
