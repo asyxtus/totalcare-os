@@ -4,7 +4,7 @@
 // callers explicitly put here. It never caches Supabase responses implicitly.
 
 export const OFFLINE_DB_NAME = 'totalcare-offline'
-export const OFFLINE_DB_VERSION = 1
+export const OFFLINE_DB_VERSION = 2
 
 export type OutboxStatus = 'pending' | 'processing' | 'failed' | 'blocked'
 
@@ -44,12 +44,19 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onerror = () => reject(request.error ?? new Error('Unable to open offline database'))
     request.onupgradeneeded = () => {
       const db = request.result
+      const transaction = request.transaction
 
       if (!db.objectStoreNames.contains('outbox')) {
         const outbox = db.createObjectStore('outbox', { keyPath: 'id' })
         outbox.createIndex('status', 'status', { unique: false })
         outbox.createIndex('clinicId', 'clinicId', { unique: false })
         outbox.createIndex('createdAt', 'createdAt', { unique: false })
+        outbox.createIndex('nextAttemptAt', 'nextAttemptAt', { unique: false })
+      } else if (transaction) {
+        const outbox = transaction.objectStore('outbox')
+        if (!outbox.indexNames.contains('nextAttemptAt')) {
+          outbox.createIndex('nextAttemptAt', 'nextAttemptAt', { unique: false })
+        }
       }
 
       if (!db.objectStoreNames.contains('cache')) {
