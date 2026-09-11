@@ -13,9 +13,12 @@ import { registerPatientIdempotent } from '@/lib/actions/patientRegistrationOffl
 import type { OfflinePatientRegistrationPayload } from '@/lib/actions/patientRegistrationOffline'
 import { bookAppointmentIdempotent } from '@/lib/actions/appointmentOffline'
 import type { OfflineAppointmentPayload } from '@/lib/actions/appointmentOffline'
+import { saveTriageIdempotent } from '@/lib/actions/triageOffline'
+import type { OfflineTriagePayload } from '@/lib/actions/triageOffline'
 import { hasWorkingConnection, recordOfflineRequestFailure, recordOfflineRequestSuccess } from '@/lib/offline/connectivity'
 
 const DUPLICATE_REVIEW = '[DUPLICATE_REVIEW]'
+const TRIAGE_REVIEW = '[TRIAGE_REVIEW]'
 const SYNC_LOCK = 'totalcare:offline-sync'
 export const SYNC_REQUEST_EVENT = 'totalcare:offline-sync-requested'
 
@@ -36,7 +39,7 @@ export default function OfflineSyncManager() {
 
         const pending = await listPendingOfflineOperations()
         for (const entry of pending) {
-          if (entry.operation !== 'patient-registration' && entry.operation !== 'appointment-booking') continue
+          if (!['patient-registration', 'appointment-booking', 'triage-capture'].includes(entry.operation)) continue
 
           await markOfflineOperationProcessing(entry.id)
           try {
@@ -70,7 +73,7 @@ export default function OfflineSyncManager() {
                 await recordOfflineRequestFailure()
                 continue
               }
-            } else {
+            } else if (entry.operation === 'appointment-booking') {
               const result = await bookAppointmentIdempotent(
                 entry.id,
                 entry.payload as OfflineAppointmentPayload,
@@ -84,6 +87,36 @@ export default function OfflineSyncManager() {
 
               if (result.error || !result.appointmentId) {
                 await markOfflineOperationFailed(entry.id, result.error ?? 'Appointment booking returned no appointment ID')
+                await recordOfflineRequestFailure()
+                continue
+              }
+            } else {
+              const result = await saveTriageIdempotent(
+                entry.id,
+                entry.payload as OfflineTriagePayload,
+              )
+
+              if (result.blocked) {
+                await markOfflineOperationBlocked(
+                  entry.id,
+                  result.error ?? 'Triage requires review before synchronization.',
+                )
+                changed = true
+                continue
+              }
+
+              if (result.requiresReview) {
+                const criticalCount = (result.flags ?? []).filter((flag: any) => flag?.severity === 'critical').length
+                await markOfflineOperationBlocked(
+                  entry.id,
+                  `${TRIAGE_REVIEW} Critical value${criticalCount === 1 ? '' : 's'} detected. Review the triage values and complete triage from the nursing queue.`,
+                )
+                changed = true
+                continue
+              }
+
+              if (result.error || !result.saved || !result.completed) {
+                await markOfflineOperationFailed(entry.id, result.error ?? 'Triage synchronization did not complete')
                 await recordOfflineRequestFailure()
                 continue
               }
