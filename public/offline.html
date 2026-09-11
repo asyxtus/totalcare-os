@@ -6,45 +6,43 @@
   <meta name="theme-color" content="#16211E">
   <title>TotalCare OS — Offline Workspace</title>
   <style>
-    :root{color-scheme:light;--bg:#f5f6f4;--surface:#fff;--text:#18201d;--muted:#68736e;--border:#d9dfdc;--accent:#1d6b58;--warn:#9a6500;--danger:#a52d2d}
+    :root{color-scheme:light;--bg:#f5f6f4;--surface:#fff;--text:#18201d;--muted:#68736e;--border:#d9dfdc;--accent:#1d6b58;--danger:#a52d2d}
     *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    main{max-width:760px;margin:0 auto;padding:24px 16px 48px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:20px}
-    h1{font-size:20px;font-weight:600;margin:0 0 5px}.sub{margin:0;color:var(--muted);font-size:13px}.pill{display:inline-flex;align-items:center;gap:7px;padding:6px 9px;border-radius:999px;background:#fbeaea;color:var(--danger);font-size:12px;white-space:nowrap}.dot{width:7px;height:7px;border-radius:50%;background:currentColor}
-    .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px}.card h2{font-size:15px;font-weight:600;margin:0 0 12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin-bottom:12px}.field:last-child{margin-bottom:0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input,.field select{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text);font:inherit}.full{grid-column:1/-1}
-    button{border:0;border-radius:7px;padding:9px 13px;font:inherit;font-size:13px;cursor:pointer}.primary{background:var(--accent);color:#fff;width:100%;margin-top:4px}.secondary{background:var(--surface);border:1px solid var(--border);color:var(--text)}button:disabled{opacity:.55;cursor:not-allowed}.notice{padding:10px 12px;border-radius:7px;background:#fff6df;color:#604300;border:1px solid #ecd79e;font-size:12px;margin-bottom:14px}.success{background:#edf8f3;color:#15563f;border-color:#b9dfcf}.error{background:#fbeaea;color:#7e2424;border-color:#e8bcbc}
-    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{border:1px solid var(--border);border-radius:8px;padding:10px}.stat small{display:block;color:var(--muted);font-size:11px}.stat strong{display:block;font-size:20px;margin-top:2px}.queue{display:flex;flex-direction:column;gap:8px}.row{border-top:1px solid var(--border);padding-top:9px;display:flex;justify-content:space-between;gap:12px}.row:first-child{border-top:0;padding-top:0}.row small{color:var(--muted)}
-    .actions{display:flex;gap:8px;flex-wrap:wrap}.hidden{display:none!important}@media(max-width:560px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.top{flex-direction:column}.stats{grid-template-columns:1fr 1fr 1fr}}
+    main{max-width:800px;margin:0 auto;padding:24px 16px 48px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:20px}
+    h1{font-size:20px;font-weight:600;margin:0 0 5px}.sub{margin:0;color:var(--muted);font-size:13px}.pill{display:inline-flex;align-items:center;gap:7px;padding:6px 9px;border-radius:999px;background:#fbeaea;color:var(--danger);font-size:12px}.dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px}.card h2{font-size:15px;font-weight:600;margin:0 0 12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin-bottom:12px}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input,.field select,.field textarea{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text);font:inherit}.field textarea{min-height:90px;resize:vertical}.full{grid-column:1/-1}
+    button{border:0;border-radius:7px;padding:9px 13px;font:inherit;font-size:13px;cursor:pointer}.primary{background:var(--accent);color:#fff;width:100%;margin-top:4px}.secondary{background:var(--surface);border:1px solid var(--border);color:var(--text)}button:disabled{opacity:.55;cursor:not-allowed}.notice{padding:10px 12px;border-radius:7px;background:#fff6df;color:#604300;border:1px solid #ecd79e;font-size:12px;margin-bottom:14px}.success{background:#edf8f3;color:#15563f;border-color:#b9dfcf}.error{background:#fbeaea;color:#7e2424;border-color:#e8bcbc}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{border:1px solid var(--border);border-radius:8px;padding:10px}.stat small{display:block;color:var(--muted);font-size:11px}.stat strong{display:block;font-size:20px;margin-top:2px}.queue{display:flex;flex-direction:column;gap:8px}.row{border-top:1px solid var(--border);padding-top:9px;display:flex;justify-content:space-between;gap:12px}.row:first-child{border-top:0;padding-top:0}.row small{color:var(--muted)}.actions{display:flex;gap:8px;flex-wrap:wrap}.hidden{display:none!important}.context{padding:9px 11px;background:#f1f5f3;border:1px solid var(--border);border-radius:7px;font-size:12px;margin-bottom:12px}@media(max-width:560px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.top{flex-direction:column}}
   </style>
 </head>
 <body>
 <main>
   <div class="top">
     <div><h1>TotalCare OS</h1><p class="sub" id="clinic">Offline Workspace</p></div>
-    <span class="pill"><span class="dot"></span><span id="offlineLabel">Offline</span></span>
+    <span class="pill"><span class="dot"></span><span>Offline</span></span>
   </div>
 
-  <div class="notice" id="contextNotice">Your clinic session is not available in this browser yet. Reconnect before using offline registration.</div>
+  <div class="notice" id="contextNotice">Reconnect once while online to establish this browser's clinic session and prepare clinical work for offline use.</div>
   <div class="notice success hidden" id="successNotice"></div>
   <div class="notice error hidden" id="errorNotice"></div>
 
   <section class="card">
-    <h2 id="registerTitle">Register patient</h2>
-    <form id="patientForm">
+    <h2>Continue consultation offline</h2>
+    <p class="sub" style="margin-bottom:12px">Only consultations previously opened while online and explicitly cached for this device appear here. Clinical pages and patient charts are not served from stale cache.</p>
+    <div id="consultationList" class="queue"></div>
+  </section>
+
+  <section class="card" id="consultationCard" style="display:none">
+    <h2 id="consultationTitle">Clinical note</h2>
+    <div class="context" id="consultationContext"></div>
+    <form id="consultationForm">
+      <div class="field"><label for="subjective">S — Subjective</label><textarea id="subjective" name="subjective"></textarea></div>
+      <div class="field"><label for="objective">O — Objective</label><textarea id="objective" name="objective"></textarea></div>
       <div class="grid">
-        <div class="field full"><label for="full_name">Full name *</label><input id="full_name" name="full_name" required></div>
-        <div class="field"><label for="sex">Sex</label><select id="sex" name="sex"><option value="">—</option><option value="F">Female</option><option value="M">Male</option></select></div>
-        <div class="field"><label for="phone">Phone</label><input id="phone" name="phone" type="tel"></div>
-        <div class="field"><label for="date_of_birth">Date of birth</label><input id="date_of_birth" name="date_of_birth" type="date"></div>
-        <div class="field"><label for="estimated_age">Estimated age</label><input id="estimated_age" name="estimated_age" type="number" min="0" max="130"></div>
-        <div class="field"><label for="national_id_number">National ID number</label><input id="national_id_number" name="national_id_number"></div>
-        <div class="field"><label for="quartier">Neighborhood</label><input id="quartier" name="quartier"></div>
-        <div class="field"><label for="city">City</label><input id="city" name="city" value="Douala"></div>
-        <div class="field"><label for="next_of_kin_name">Emergency contact</label><input id="next_of_kin_name" name="next_of_kin_name"></div>
-        <div class="field"><label for="next_of_kin_phone">Emergency contact phone</label><input id="next_of_kin_phone" name="next_of_kin_phone" type="tel"></div>
-        <div class="field full"><label for="allergies">Known allergies</label><input id="allergies" name="allergies"></div>
-        <div class="field full"><label for="chronic_conditions">Chronic conditions</label><input id="chronic_conditions" name="chronic_conditions"></div>
+        <div class="field"><label for="diagnosis">A — Primary diagnosis *</label><input id="diagnosis" name="diagnosis" required></div>
+        <div class="field"><label for="diagnosisCode">ICD-10 code</label><input id="diagnosisCode" name="diagnosisCode"></div>
       </div>
-      <button class="primary" id="saveBtn" type="submit">Save patient locally</button>
+      <div class="field"><label for="plan">P — Plan</label><textarea id="plan" name="plan"></textarea></div>
+      <button class="primary" id="consultationSaveBtn" type="submit">Save consultation locally</button>
     </form>
   </section>
 
@@ -55,7 +53,7 @@
       <div class="stat"><small>Failed</small><strong id="failed">0</strong></div>
       <div class="stat"><small>Needs review</small><strong id="blocked">0</strong></div>
     </div>
-    <p class="sub" style="margin:12px 0">Writes made here stay on this device until TotalCare reconnects. They are not silently discarded.</p>
+    <p class="sub" style="margin:12px 0">Offline clinical writes remain on this device until synchronized. Invalid or stale clinical data is blocked for review rather than retried forever.</p>
     <div class="actions"><button class="secondary" id="refreshBtn" type="button">Refresh queue</button><button class="secondary" id="onlineBtn" type="button">Try reconnecting</button></div>
     <div class="queue" id="queue" style="margin-top:14px"></div>
   </section>
@@ -65,34 +63,25 @@
 <script>
 (function(){
   'use strict';
-  var DB='totalcare-offline', VERSION=2, STORE='outbox';
-  var context={};
-  try{context=JSON.parse(localStorage.getItem('tc-offline-context')||'{}')}catch(e){}
-  var clinic=document.getElementById('clinic');
-  if(context.clinicName) clinic.textContent=context.clinicName+(context.staffName?' · '+context.staffName:'');
-  var contextNotice=document.getElementById('contextNotice');
-  if(context.clinicId&&context.staffId) contextNotice.classList.add('hidden');
+  var DB='totalcare-offline',VERSION=2,OUTBOX='outbox',CACHE='cache';
+  var context={};try{context=JSON.parse(localStorage.getItem('tc-offline-context')||'{}')}catch(e){}
+  var selected=null;
+  var clinic=document.getElementById('clinic');if(context.clinicName)clinic.textContent=context.clinicName+(context.staffName?' · '+context.staffName:'');
+  var contextNotice=document.getElementById('contextNotice');if(context.clinicId&&context.staffId)contextNotice.classList.add('hidden');
 
-  function openDb(){return new Promise(function(resolve,reject){
-    if(!('indexedDB' in window)) return reject(new Error('IndexedDB is not available'));
-    var r=indexedDB.open(DB,VERSION);
-    r.onerror=function(){reject(r.error||new Error('Unable to open offline database'))};
-    r.onupgradeneeded=function(){var db=r.result,t=r.transaction;
-      if(!db.objectStoreNames.contains(STORE)){var s=db.createObjectStore(STORE,{keyPath:'id'});s.createIndex('status','status',{unique:false});s.createIndex('clinicId','clinicId',{unique:false});s.createIndex('createdAt','createdAt',{unique:false});s.createIndex('nextAttemptAt','nextAttemptAt',{unique:false})}
-      else if(t){var s=t.objectStore(STORE);if(!s.indexNames.contains('nextAttemptAt'))s.createIndex('nextAttemptAt','nextAttemptAt',{unique:false})}
-      if(!db.objectStoreNames.contains('cache')){var c=db.createObjectStore('cache',{keyPath:'key'});c.createIndex('clinicId','clinicId',{unique:false});c.createIndex('entity','entity',{unique:false});c.createIndex('updatedAt','updatedAt',{unique:false})}
-    };
-    r.onsuccess=function(){resolve(r.result)};
-  })}
-  function all(){return openDb().then(function(db){return new Promise(function(resolve,reject){var tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).getAll();r.onsuccess=function(){resolve(r.result||[])};r.onerror=function(){reject(r.error||new Error('Unable to read queue'))};tx.oncomplete=function(){db.close()};})})}
-  function put(entry){return openDb().then(function(db){return new Promise(function(resolve,reject){var tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(entry);tx.oncomplete=function(){db.close();resolve()};tx.onerror=function(){reject(tx.error||new Error('Unable to save queue entry'))}})})}
-  function id(){if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();return Date.now()+'-'+Math.random().toString(36).slice(2)}
-  function value(form,key){return String(new FormData(form).get(key)||'').trim()}
-  function payload(form){return {full_name:value(form,'full_name'),sex:value(form,'sex'),date_of_birth:value(form,'date_of_birth'),estimated_age:value(form,'estimated_age'),national_id_number:value(form,'national_id_number'),phone:value(form,'phone'),quartier:value(form,'quartier'),city:value(form,'city'),next_of_kin_name:value(form,'next_of_kin_name'),next_of_kin_phone:value(form,'next_of_kin_phone'),allergies:value(form,'allergies'),chronic_conditions:value(form,'chronic_conditions'),payment_category:'cash',insurer_id:'',policy_number:'',policyholder_name:'',confirm_duplicate:false}}
+  function openDb(){return new Promise(function(resolve,reject){var r=indexedDB.open(DB,VERSION);r.onerror=function(){reject(r.error||new Error('Unable to open offline database'))};r.onsuccess=function(){resolve(r.result)}})}
+  function readStore(store,mode,fn){return openDb().then(function(db){return new Promise(function(resolve,reject){var tx=db.transaction(store,mode),s=tx.objectStore(store),result=fn(s);result.onsuccess=function(){resolve(result.result||[])};result.onerror=function(){reject(result.error||new Error('Offline storage read failed'))};tx.oncomplete=function(){db.close()};})})}
+  function all(store){return readStore(store,'readonly',function(s){return s.getAll()})}
+  function put(entry){return openDb().then(function(db){return new Promise(function(resolve,reject){var tx=db.transaction(OUTBOX,'readwrite');tx.objectStore(OUTBOX).put(entry);tx.oncomplete=function(){db.close();resolve()};tx.onerror=function(){reject(tx.error||new Error('Unable to save offline operation'))}})})}
+  function id(){return window.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2)}
   function notice(el,msg){el.textContent=msg;el.classList.remove('hidden')}
-  function refresh(){return all().then(function(entries){var clinicEntries=entries.filter(function(e){return !context.clinicId||e.clinicId===context.clinicId});var p=0,f=0,b=0;clinicEntries.forEach(function(e){if(e.status==='pending'||e.status==='processing')p++;if(e.status==='failed')f++;if(e.status==='blocked')b++});document.getElementById('pending').textContent=p;document.getElementById('failed').textContent=f;document.getElementById('blocked').textContent=b;var q=document.getElementById('queue');q.innerHTML='';if(!clinicEntries.length){q.innerHTML='<p class="sub">No local operations.</p>';return}clinicEntries.sort(function(a,b){return b.createdAt.localeCompare(a.createdAt)}).slice(0,10).forEach(function(e){var row=document.createElement('div');row.className='row';var left=document.createElement('div');var title=document.createElement('div');title.textContent=e.operation==='patient-registration'?'Patient registration':e.operation;var small=document.createElement('small');small.textContent=new Date(e.createdAt).toLocaleString();left.appendChild(title);left.appendChild(small);var right=document.createElement('small');right.textContent=e.status==='blocked'?'Needs review':e.status==='failed'?'Failed':'Pending';row.appendChild(left);row.appendChild(right);q.appendChild(row)})})['catch'](function(e){notice(document.getElementById('errorNotice'),e.message)})}
-  document.getElementById('patientForm').addEventListener('submit',function(ev){ev.preventDefault();var form=ev.currentTarget;var btn=document.getElementById('saveBtn');document.getElementById('successNotice').classList.add('hidden');document.getElementById('errorNotice').classList.add('hidden');if(!context.clinicId||!context.staffId){notice(contextNotice,'Reconnect to TotalCare once while online so this browser can establish the clinic session before using offline registration.');return}btn.disabled=true;var now=new Date().toISOString();put({id:id(),operation:'patient-registration',clinicId:context.clinicId,staffId:context.staffId,payload:payload(form),createdAt:now,updatedAt:now,attempts:0,status:'pending'}).then(function(){form.reset();document.getElementById('city').value='Douala';notice(document.getElementById('successNotice'),'Patient saved locally. It will synchronize automatically when the connection returns.');return refresh()})['catch'](function(e){notice(document.getElementById('errorNotice'),e.message)})['finally'](function(){btn.disabled=false})});
-  document.getElementById('refreshBtn').addEventListener('click',refresh);document.getElementById('onlineBtn').addEventListener('click',function(){if(navigator.onLine)window.location.href='/dashboard';else notice(document.getElementById('errorNotice'),'The connection is still offline.')});document.getElementById('backBtn').addEventListener('click',function(){window.location.href='/dashboard'});window.addEventListener('online',function(){window.location.href='/dashboard'});refresh();
+  function clinicCacheEntries(entries){return entries.filter(function(e){return e.key&&e.key.indexOf('consultation:'+(context.clinicId||'')+':')===0&&!e.expiresAt||e.key&&e.key.indexOf('consultation:'+(context.clinicId||'')+':')===0})}
+  function getConsultations(){return all(CACHE).then(function(entries){var now=Date.now();return entries.filter(function(e){if(!e.key||e.key.indexOf('consultation:'+(context.clinicId||'')+':')!==0)return false;if(e.expiresAt&&Date.parse(e.expiresAt)<=now)return false;return e.data&&e.data.visitId})})}
+  function renderConsultations(){var list=document.getElementById('consultationList');list.innerHTML='';if(!context.clinicId||!context.staffId){list.innerHTML='<p class="sub">No offline clinical session is available yet.</p>';return}getConsultations().then(function(entries){if(!entries.length){list.innerHTML='<p class="sub">No consultation has been prepared for offline use on this device.</p>';return}entries.forEach(function(entry){var c=entry.data;var row=document.createElement('div');row.className='row';var left=document.createElement('div');var title=document.createElement('div');title.textContent=c.patientName||'Patient';var small=document.createElement('small');small.textContent=(c.patientCode||'')+' · cached '+new Date(c.cachedAt||entry.updatedAt).toLocaleString();left.appendChild(title);left.appendChild(small);var b=document.createElement('button');b.className='secondary';b.type='button';b.textContent='Open';b.onclick=function(){openConsultation(c)};row.appendChild(left);row.appendChild(b);list.appendChild(row)})})['catch'](function(e){notice(document.getElementById('errorNotice'),e.message)})}
+  function openConsultation(c){selected=c;document.getElementById('consultationCard').style.display='block';document.getElementById('consultationTitle').textContent='Consultation — '+(c.patientName||'Patient');document.getElementById('consultationContext').textContent=(c.patientCode||'')+' · This is a device-cached consultation context, not a stale patient chart.';document.getElementById('subjective').value=c.subjectiveNotes||'';document.getElementById('objective').value=c.examinationNotes||'';document.getElementById('diagnosis').value=c.diagnosis||'';document.getElementById('diagnosisCode').value=c.diagnosisCode||'';document.getElementById('plan').value=c.treatmentPlan||'';window.scrollTo({top:document.getElementById('consultationCard').offsetTop-12,behavior:'smooth'})}
+  function refresh(){return all(OUTBOX).then(function(entries){var mine=entries.filter(function(e){return !context.clinicId||e.clinicId===context.clinicId});var p=0,f=0,b=0;mine.forEach(function(e){if(e.status==='pending'||e.status==='processing')p++;if(e.status==='failed')f++;if(e.status==='blocked')b++});document.getElementById('pending').textContent=p;document.getElementById('failed').textContent=f;document.getElementById('blocked').textContent=b;var q=document.getElementById('queue');q.innerHTML='';mine.sort(function(a,b){return b.createdAt.localeCompare(a.createdAt)}).slice(0,10).forEach(function(e){var row=document.createElement('div');row.className='row';var left=document.createElement('div');var title=document.createElement('div');title.textContent=e.operation==='patient-registration'?'Patient registration':e.operation==='consultation-completion'?'Consultation completion':e.operation;var small=document.createElement('small');small.textContent=new Date(e.createdAt).toLocaleString();left.appendChild(title);left.appendChild(small);var right=document.createElement('small');right.textContent=e.status==='blocked'?'Needs review':e.status==='failed'?'Failed':'Pending';row.appendChild(left);row.appendChild(right);q.appendChild(row)})})['catch'](function(e){notice(document.getElementById('errorNotice'),e.message)})}
+  document.getElementById('consultationForm').addEventListener('submit',function(ev){ev.preventDefault();if(!selected)return;var diagnosis=document.getElementById('diagnosis').value.trim();if(!diagnosis){notice(document.getElementById('errorNotice'),'A primary diagnosis is required.');return}if(!context.clinicId||!context.staffId){notice(contextNotice,'Reconnect to TotalCare once while online before using offline clinical work.');return}var btn=document.getElementById('consultationSaveBtn');btn.disabled=true;var now=new Date().toISOString();var payload={visitId:selected.visitId,consultationId:selected.consultationId,subjectiveNotes:document.getElementById('subjective').value.trim(),examinationNotes:document.getElementById('objective').value.trim(),treatmentPlan:document.getElementById('plan').value.trim(),diagnoses:[{diagnosis:diagnosis,icd10Code:document.getElementById('diagnosisCode').value.trim()||null,isPrimary:true,sequence:1}]};put({id:id(),operation:'consultation-completion',clinicId:context.clinicId,staffId:context.staffId,payload:payload,createdAt:now,updatedAt:now,attempts:0,status:'pending'}).then(function(){notice(document.getElementById('successNotice'),'Consultation saved locally. It will synchronize automatically when the connection returns.');document.getElementById('consultationCard').style.display='none';selected=null;return refresh()})['catch'](function(e){notice(document.getElementById('errorNotice'),e.message)})['finally'](function(){btn.disabled=false})});
+  document.getElementById('refreshBtn').addEventListener('click',function(){renderConsultations();refresh()});document.getElementById('onlineBtn').addEventListener('click',function(){if(navigator.onLine)window.location.href='/dashboard';else notice(document.getElementById('errorNotice'),'The connection is still offline.')});document.getElementById('backBtn').addEventListener('click',function(){window.location.href='/dashboard'});window.addEventListener('online',function(){window.location.href='/dashboard'});renderConsultations();refresh();
 })();
 </script>
 </body>
