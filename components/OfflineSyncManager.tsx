@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { getAllRecords, type OutboxEntry } from '@/lib/offline/db'
 import {
   acknowledgeOfflineOperation,
   listPendingOfflineOperations,
@@ -67,6 +66,12 @@ export default function OfflineSyncManager() {
                 entry.id,
                 entry.payload as OfflineAppointmentPayload,
               )
+
+              if (result.blocked) {
+                await markOfflineOperationBlocked(entry.id, result.error ?? 'Appointment requires review before synchronization.')
+                changed = true
+                continue
+              }
 
               if (result.error || !result.appointmentId) {
                 await markOfflineOperationFailed(entry.id, result.error ?? 'Appointment booking returned no appointment ID')
