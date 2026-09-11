@@ -1,15 +1,18 @@
 'use client'
 
-import { deleteRecord, getAllRecords, getRecord, putRecord, type CacheEntry } from '@/lib/offline/db'
+import { deleteRecord, getAllRecords, getRecord, putRecord, type CachedRecord } from '@/lib/offline/db'
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 
 export async function setOfflineCache<T>(key: string, data: T, ttlMs = CACHE_TTL_MS): Promise<void> {
   const now = Date.now()
-  const entry: CacheEntry<T> = {
+  const entry: CachedRecord<T> = {
     key,
+    // Generic cache entries are not tied to a clinic here. Sensitive,
+    // clinic-scoped caches should include clinic identity in their key.
+    clinicId: 'global',
+    entity: 'generic',
     data,
-    createdAt: new Date(now).toISOString(),
     updatedAt: new Date(now).toISOString(),
     expiresAt: new Date(now + ttlMs).toISOString(),
   }
@@ -17,9 +20,9 @@ export async function setOfflineCache<T>(key: string, data: T, ttlMs = CACHE_TTL
 }
 
 export async function getOfflineCache<T>(key: string): Promise<T | null> {
-  const entry = await getRecord<CacheEntry<T>>('cache', key)
+  const entry = await getRecord<CachedRecord<T>>('cache', key)
   if (!entry) return null
-  if (Date.parse(entry.expiresAt) <= Date.now()) {
+  if (entry.expiresAt && Date.parse(entry.expiresAt) <= Date.now()) {
     await deleteRecord('cache', key)
     return null
   }
@@ -31,6 +34,6 @@ export async function removeOfflineCache(key: string): Promise<void> {
 }
 
 export async function clearOfflineCache(): Promise<void> {
-  const entries = await getAllRecords<CacheEntry>('cache')
+  const entries = await getAllRecords<CachedRecord>('cache')
   await Promise.all(entries.map((entry) => deleteRecord('cache', entry.key)))
 }
