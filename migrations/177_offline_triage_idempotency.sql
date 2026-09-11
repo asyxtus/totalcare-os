@@ -163,6 +163,7 @@ revoke all on function public.save_triage_idempotent(
   numeric, numeric, numeric, text, text, text, text, text
 ) from public;
 grant execute on function public.save_triage_idempotent(
-  uuid, uuid, uuid, uuid, numeric, numeric, numeric, numeric, numeric,
-  numeric, numeric, text, text, text, text, text
+  uuid, uuid, uuid, uuid, numeric, numeric, numeric, numeric,
+  numeric, numeric, numeric, numeric,
+  text, text, text, text, text
 ) to authenticated;
