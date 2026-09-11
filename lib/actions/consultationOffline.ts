@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentStaff } from '@/lib/auth/getCurrentStaff'
 
 export interface OfflineConsultationPayload {
   visitId: string
@@ -52,17 +53,13 @@ export async function saveConsultationIdempotent(
     return { blocked: true, error: 'A diagnosis is required before this consultation can be synchronized.' }
   }
 
+  const staff = await getCurrentStaff()
   const supabase = await createClient()
-  const { data: staff, error: staffError } = await supabase.rpc('get_current_staff_context')
-  if (staffError || !staff?.[0]) {
-    return { error: 'Could not verify the clinical session. Synchronization will retry automatically.' }
-  }
 
-  const row = staff[0]
   const { data, error } = await supabase.rpc('complete_consultation_idempotent', {
     p_operation_id: operationId,
-    p_clinic_id: row.clinic_id,
-    p_staff_id: row.staff_id,
+    p_clinic_id: staff.clinicId,
+    p_staff_id: staff.staffId,
     p_visit_id: payload.visitId,
     p_consultation_id: payload.consultationId,
     p_subjective_notes: payload.subjectiveNotes?.trim() || null,
