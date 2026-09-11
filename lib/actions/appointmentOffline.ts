@@ -16,10 +16,22 @@ export interface OfflineAppointmentResult {
   error?: string
   appointmentId?: string
   replayed?: boolean
+  blocked?: boolean
 }
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function isPermanentAppointmentError(message: string): boolean {
+  return [
+    'Operation ID is required',
+    'Operation ID is already used for another operation',
+    'Patient does not belong to this clinic',
+    'Invalid doctor',
+    'Invalid consultation type',
+    'Date and time are required',
+  ].some((fragment) => message.includes(fragment))
 }
 
 export async function bookAppointmentIdempotent(
@@ -30,9 +42,9 @@ export async function bookAppointmentIdempotent(
   const supabase = await createClient()
   const operation = text(operationId)
 
-  if (!operation) return { error: 'Sync operation ID is missing.' }
-  if (!text(payload.patient_id)) return { error: 'Select a patient.' }
-  if (!text(payload.scheduled_at)) return { error: 'Date and time are required.' }
+  if (!operation) return { error: 'Sync operation ID is missing.', blocked: true }
+  if (!text(payload.patient_id)) return { error: 'Select a patient.', blocked: true }
+  if (!text(payload.scheduled_at)) return { error: 'Date and time are required.', blocked: true }
 
   const { data, error } = await supabase.rpc('book_appointment_idempotent', {
     p_operation_id: operation,
@@ -48,10 +60,13 @@ export async function bookAppointmentIdempotent(
 
   if (error) {
     console.error('bookAppointmentIdempotent failed:', { code: error.code, message: error.message, clinicId: staff.clinicId })
+    if (isPermanentAppointmentError(error.message ?? '')) {
+      return { error: 'This appointment could not be synchronized because its data is no longer valid. Review the appointment details.', blocked: true }
+    }
     return { error: 'Could not save the appointment. Synchronization will retry automatically.' }
   }
 
   const result = data?.[0]
-  if (!result?.appointment_id) return { error: 'Invalid appointment response.' }
+  if (!result?.appointment_id) return { error: 'Invalid appointment response.', blocked: true }
   return { appointmentId: result.appointment_id, replayed: result.idempotent_replay }
 }
