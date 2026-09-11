@@ -33,7 +33,6 @@ declare
   v_duration int;
   v_dose text;
   v_frequency text;
-  v_instructions text;
   v_has_item boolean := false;
 begin
   if p_operation_id is null then
@@ -108,7 +107,6 @@ begin
     v_duration := nullif(trim(v_item->>'durationDays'), '')::int;
     v_dose := nullif(trim(v_item->>'dose'), '');
     v_frequency := nullif(trim(v_item->>'frequency'), '');
-    v_instructions := nullif(trim(v_item->>'instructions'), '');
 
     if (v_product_id is null) = (v_freetext is null) then
       raise exception 'Each medication must be either a catalog product or free-text medication';
@@ -163,7 +161,6 @@ begin
     v_duration := nullif(trim(v_item->>'durationDays'), '')::int;
     v_dose := nullif(trim(v_item->>'dose'), '');
     v_frequency := nullif(trim(v_item->>'frequency'), '');
-    v_instructions := nullif(trim(v_item->>'instructions'), '');
 
     insert into public.prescription_items (
       prescription_id,
@@ -172,8 +169,7 @@ begin
       dose,
       frequency,
       duration_days,
-      quantity_prescribed,
-      instructions
+      quantity_prescribed
     ) values (
       v_prescription_id,
       v_product_id,
@@ -181,8 +177,7 @@ begin
       v_dose,
       v_frequency,
       v_duration,
-      v_quantity,
-      v_instructions
+      v_quantity
     );
   end loop;
 
