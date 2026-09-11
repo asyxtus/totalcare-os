@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getCurrentStaff } from '@/lib/auth/getCurrentStaff'
 
 export interface OfflineConsultationPayload {
+  clinicId: string
+  staffId: string
   visitId: string
   consultationId: string
   subjectiveNotes: string
@@ -45,7 +47,7 @@ export async function saveConsultationIdempotent(
   operationId: string,
   payload: OfflineConsultationPayload,
 ): Promise<OfflineConsultationResult> {
-  if (!operationId || !payload.visitId || !payload.consultationId) {
+  if (!operationId || !payload.clinicId || !payload.staffId || !payload.visitId || !payload.consultationId) {
     return { blocked: true, error: 'Consultation data is incomplete and requires review before synchronization.' }
   }
 
@@ -54,12 +56,15 @@ export async function saveConsultationIdempotent(
   }
 
   const staff = await getCurrentStaff()
-  const supabase = await createClient()
+  if (staff.clinicId !== payload.clinicId || staff.staffId !== payload.staffId) {
+    return { blocked: true, error: 'This offline consultation belongs to a different clinical session. Review it from the Sync Center.' }
+  }
 
+  const supabase = await createClient()
   const { data, error } = await supabase.rpc('complete_consultation_idempotent', {
     p_operation_id: operationId,
-    p_clinic_id: staff.clinicId,
-    p_staff_id: staff.staffId,
+    p_clinic_id: payload.clinicId,
+    p_staff_id: payload.staffId,
     p_visit_id: payload.visitId,
     p_consultation_id: payload.consultationId,
     p_subjective_notes: payload.subjectiveNotes?.trim() || null,
