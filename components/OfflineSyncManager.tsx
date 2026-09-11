@@ -17,6 +17,8 @@ import { saveTriageIdempotent } from '@/lib/actions/triageOffline'
 import type { OfflineTriagePayload } from '@/lib/actions/triageOffline'
 import { saveConsultationIdempotent } from '@/lib/actions/consultationOffline'
 import type { OfflineConsultationPayload } from '@/lib/actions/consultationOffline'
+import { createPrescriptionIdempotent } from '@/lib/actions/prescriptionOffline'
+import type { OfflinePrescriptionPayload } from '@/lib/actions/prescriptionOffline'
 import { hasWorkingConnection, recordOfflineRequestFailure, recordOfflineRequestSuccess } from '@/lib/offline/connectivity'
 
 const DUPLICATE_REVIEW = '[DUPLICATE_REVIEW]'
@@ -41,108 +43,87 @@ export default function OfflineSyncManager() {
 
         const pending = await listPendingOfflineOperations()
         for (const entry of pending) {
-          if (!['patient-registration', 'appointment-booking', 'triage-capture', 'consultation-completion'].includes(entry.operation)) continue
+          if (!['patient-registration', 'appointment-booking', 'triage-capture', 'consultation-completion', 'prescription-order'].includes(entry.operation)) continue
 
           await markOfflineOperationProcessing(entry.id)
           try {
             if (entry.operation === 'patient-registration') {
-              const result = await registerPatientIdempotent(
-                entry.id,
-                entry.payload as OfflinePatientRegistrationPayload,
-              )
-
+              const result = await registerPatientIdempotent(entry.id, entry.payload as OfflinePatientRegistrationPayload)
               if (result.duplicateWarning) {
                 const patient = result.existingPatient
-                await markOfflineOperationBlocked(
-                  entry.id,
-                  `${DUPLICATE_REVIEW} ${patient?.fullName ?? 'Existing patient'} (${patient?.patientCode ?? 'unknown code'}). Review before retrying.`,
-                )
+                await markOfflineOperationBlocked(entry.id, `${DUPLICATE_REVIEW} ${patient?.fullName ?? 'Existing patient'} (${patient?.patientCode ?? 'unknown code'}). Review before retrying.`)
                 changed = true
                 continue
               }
-
               if (result.blocked) {
-                await markOfflineOperationBlocked(
-                  entry.id,
-                  result.error ?? 'Patient registration requires review before synchronization.',
-                )
+                await markOfflineOperationBlocked(entry.id, result.error ?? 'Patient registration requires review before synchronization.')
                 changed = true
                 continue
               }
-
               if (result.error || !result.newPatientId) {
                 await markOfflineOperationFailed(entry.id, result.error ?? 'Patient registration returned no patient ID')
                 await recordOfflineRequestFailure()
                 continue
               }
             } else if (entry.operation === 'appointment-booking') {
-              const result = await bookAppointmentIdempotent(
-                entry.id,
-                entry.payload as OfflineAppointmentPayload,
-              )
-
+              const result = await bookAppointmentIdempotent(entry.id, entry.payload as OfflineAppointmentPayload)
               if (result.blocked) {
                 await markOfflineOperationBlocked(entry.id, result.error ?? 'Appointment requires review before synchronization.')
                 changed = true
                 continue
               }
-
               if (result.error || !result.appointmentId) {
                 await markOfflineOperationFailed(entry.id, result.error ?? 'Appointment booking returned no appointment ID')
                 await recordOfflineRequestFailure()
                 continue
               }
             } else if (entry.operation === 'triage-capture') {
-              const result = await saveTriageIdempotent(
-                entry.id,
-                entry.payload as OfflineTriagePayload,
-              )
-
+              const result = await saveTriageIdempotent(entry.id, entry.payload as OfflineTriagePayload)
               if (result.blocked) {
-                await markOfflineOperationBlocked(
-                  entry.id,
-                  result.error ?? 'Triage requires review before synchronization.',
-                )
+                await markOfflineOperationBlocked(entry.id, result.error ?? 'Triage requires review before synchronization.')
                 changed = true
                 continue
               }
-
               if (result.requiresReview) {
                 const criticalCount = (result.flags ?? []).filter((flag: any) => flag?.severity === 'critical').length
-                await markOfflineOperationBlocked(
-                  entry.id,
-                  `${TRIAGE_REVIEW} Critical value${criticalCount === 1 ? '' : 's'} detected. Review the triage values and complete triage from the nursing queue.`,
-                )
+                await markOfflineOperationBlocked(entry.id, `${TRIAGE_REVIEW} Critical value${criticalCount === 1 ? '' : 's'} detected. Review the triage values and complete triage from the nursing queue.`)
                 changed = true
                 continue
               }
-
               if (result.error || !result.saved || !result.completed) {
                 await markOfflineOperationFailed(entry.id, result.error ?? 'Triage synchronization did not complete')
                 await recordOfflineRequestFailure()
                 continue
               }
-            } else {
-              const result = await saveConsultationIdempotent(
-                entry.id,
-                {
-                  ...(entry.payload as OfflineConsultationPayload),
-                  clinicId: entry.clinicId,
-                  staffId: entry.staffId,
-                },
-              )
-
+            } else if (entry.operation === 'consultation-completion') {
+              const result = await saveConsultationIdempotent(entry.id, {
+                ...(entry.payload as OfflineConsultationPayload),
+                clinicId: entry.clinicId,
+                staffId: entry.staffId,
+              })
               if (result.blocked) {
-                await markOfflineOperationBlocked(
-                  entry.id,
-                  result.error ?? 'Consultation requires review before synchronization.',
-                )
+                await markOfflineOperationBlocked(entry.id, result.error ?? 'Consultation requires review before synchronization.')
                 changed = true
                 continue
               }
-
               if (result.error || !result.saved || !result.completed) {
                 await markOfflineOperationFailed(entry.id, result.error ?? 'Consultation synchronization did not complete')
+                await recordOfflineRequestFailure()
+                continue
+              }
+            } else {
+              const result = await createPrescriptionIdempotent(entry.id, {
+                ...(entry.payload as OfflinePrescriptionPayload),
+                clinicId: entry.clinicId,
+                staffId: entry.staffId,
+              })
+              if (result.blocked) {
+                await markOfflineOperationBlocked(entry.id, result.error ?? 'Prescription requires review before synchronization.')
+                changed = true
+                continue
+              }
+              if (result.error || !result.saved || !result.prescriptionId) {
+                await markOfflineOperationFailed(entry.id, result.error ?? 'Prescription synchronization did not complete')
                 await recordOfflineRequestFailure()
                 continue
               }
