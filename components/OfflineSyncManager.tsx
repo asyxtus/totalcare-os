@@ -15,6 +15,8 @@ import { bookAppointmentIdempotent } from '@/lib/actions/appointmentOffline'
 import type { OfflineAppointmentPayload } from '@/lib/actions/appointmentOffline'
 import { saveTriageIdempotent } from '@/lib/actions/triageOffline'
 import type { OfflineTriagePayload } from '@/lib/actions/triageOffline'
+import { saveConsultationIdempotent } from '@/lib/actions/consultationOffline'
+import type { OfflineConsultationPayload } from '@/lib/actions/consultationOffline'
 import { hasWorkingConnection, recordOfflineRequestFailure, recordOfflineRequestSuccess } from '@/lib/offline/connectivity'
 
 const DUPLICATE_REVIEW = '[DUPLICATE_REVIEW]'
@@ -39,7 +41,7 @@ export default function OfflineSyncManager() {
 
         const pending = await listPendingOfflineOperations()
         for (const entry of pending) {
-          if (!['patient-registration', 'appointment-booking', 'triage-capture'].includes(entry.operation)) continue
+          if (!['patient-registration', 'appointment-booking', 'triage-capture', 'consultation-completion'].includes(entry.operation)) continue
 
           await markOfflineOperationProcessing(entry.id)
           try {
@@ -90,7 +92,7 @@ export default function OfflineSyncManager() {
                 await recordOfflineRequestFailure()
                 continue
               }
-            } else {
+            } else if (entry.operation === 'triage-capture') {
               const result = await saveTriageIdempotent(
                 entry.id,
                 entry.payload as OfflineTriagePayload,
@@ -117,6 +119,26 @@ export default function OfflineSyncManager() {
 
               if (result.error || !result.saved || !result.completed) {
                 await markOfflineOperationFailed(entry.id, result.error ?? 'Triage synchronization did not complete')
+                await recordOfflineRequestFailure()
+                continue
+              }
+            } else {
+              const result = await saveConsultationIdempotent(
+                entry.id,
+                entry.payload as OfflineConsultationPayload,
+              )
+
+              if (result.blocked) {
+                await markOfflineOperationBlocked(
+                  entry.id,
+                  result.error ?? 'Consultation requires review before synchronization.',
+                )
+                changed = true
+                continue
+              }
+
+              if (result.error || !result.saved || !result.completed) {
+                await markOfflineOperationFailed(entry.id, result.error ?? 'Consultation synchronization did not complete')
                 await recordOfflineRequestFailure()
                 continue
               }
