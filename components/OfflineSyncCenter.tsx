@@ -10,6 +10,7 @@ function operationLabel(operation: string, lang: 'fr' | 'en') {
   const labels: Record<string, [string, string]> = {
     'patient-registration': ['Enregistrement patient', 'Patient registration'],
     'appointment-booking': ['Prise de rendez-vous', 'Appointment booking'],
+    'triage-capture': ['Triage', 'Triage'],
   }
   return labels[operation]?.[lang === 'fr' ? 0 : 1] ?? operation
 }
@@ -33,10 +34,7 @@ function statusTone(status: OutboxStatus) {
 
 function formatDate(value: string, lang: 'fr' | 'en') {
   try {
-    return new Intl.DateTimeFormat(lang === 'fr' ? 'fr-FR' : 'en-US', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date(value))
+    return new Intl.DateTimeFormat(lang === 'fr' ? 'fr-FR' : 'en-US', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
   } catch {
     return value
   }
@@ -124,9 +122,7 @@ export default function OfflineSyncCenter({ lang }: { lang: 'fr' | 'en' }) {
           <td style={{ padding: '11px 12px', color: statusTone(entry.status), whiteSpace: 'nowrap' }}>{statusLabel(entry.status, lang)}</td>
           <td style={{ padding: '11px 12px', whiteSpace: 'nowrap', color: 'var(--color-text-secondary)' }}>{formatDate(entry.createdAt, lang)}</td>
           <td style={{ padding: '11px 12px', textAlign: 'center' }}>{entry.attempts}</td>
-          <td style={{ padding: '11px 12px', minWidth: 260, maxWidth: 460 }}>
-            {entry.lastError ? <span style={{ color: entry.status === 'blocked' ? 'var(--color-critical-text)' : 'var(--color-text-secondary)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{entry.lastError}</span> : <span style={{ color: 'var(--color-text-secondary)' }}>—</span>}
-          </td>
+          <td style={{ padding: '11px 12px', minWidth: 260, maxWidth: 460 }}>{entry.lastError ? <span style={{ color: entry.status === 'blocked' ? 'var(--color-critical-text)' : 'var(--color-text-secondary)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{entry.lastError}</span> : <span style={{ color: 'var(--color-text-secondary)' }}>—</span>}</td>
           <td style={{ padding: '11px 12px', whiteSpace: 'nowrap' }}>
             {(entry.status === 'failed' || entry.status === 'blocked') && <button type="button" disabled={retrying === entry.id} onClick={() => void retry(entry.id)} style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', padding: '6px 9px', borderRadius: 'var(--radius-sm)', fontSize: 11, cursor: retrying === entry.id ? 'wait' : 'pointer' }}>
               {retrying === entry.id ? (lang === 'fr' ? 'Relance…' : 'Retrying…') : (lang === 'fr' ? 'Réessayer' : 'Retry')}
