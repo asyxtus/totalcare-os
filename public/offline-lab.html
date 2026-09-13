@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#16211E">
+  <title>TotalCare OS — Offline Laboratory Orders</title>
+  <style>
+    :root{color-scheme:light;--bg:#f5f6f4;--surface:#fff;--text:#18201d;--muted:#68736e;--border:#d9dfdc;--accent:#1d6b58;--danger:#a52d2d;--warn:#604300}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{max-width:900px;margin:0 auto;padding:24px 16px 48px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:20px}
+    h1{font-size:20px;font-weight:600;margin:0 0 5px}.sub{margin:0;color:var(--muted);font-size:13px}.pill{display:inline-flex;align-items:center;gap:7px;padding:6px 9px;border-radius:999px;background:#fbeaea;color:var(--danger);font-size:12px}.dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px}.card h2{font-size:15px;font-weight:600;margin:0 0 12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin-bottom:12px}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input,.field select{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text);font:inherit}.full{grid-column:1/-1}
+    button{border:0;border-radius:7px;padding:9px 13px;font:inherit;font-size:13px;cursor:pointer}.primary{background:var(--accent);color:#fff;width:100%;margin-top:4px}.secondary{background:var(--surface);border:1px solid var(--border);color:var(--text)}button:disabled{opacity:.55;cursor:not-allowed}.notice{padding:10px 12px;border-radius:7px;background:#fff6df;color:var(--warn);border:1px solid #ecd79e;font-size:12px;margin-bottom:14px}.success{background:#edf8f3;color:#15563f;border-color:#b9dfcf}.error{background:#fbeaea;color:#7e2424;border-color:#e8bcbc}.context{padding:9px 11px;background:#f1f5f3;border:1px solid var(--border);border-radius:7px;font-size:12px;margin-bottom:12px}.item{border:1px solid var(--border);border-radius:9px;padding:10px;margin-bottom:8px;background:#fff}.itemhead{display:flex;justify-content:space-between;gap:8px;align-items:center}.itemname{font-weight:600}.meta{font-size:11px;color:var(--muted);margin-top:3px}.actions{display:flex;gap:8px;flex-wrap:wrap}.tabs{display:flex;gap:6px;margin-bottom:10px}.tab.active{background:var(--accent);color:#fff}.hidden{display:none!important}
+    @media(max-width:560px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.top{flex-direction:column}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="top"><div><h1>TotalCare OS</h1><p class="sub" id="clinic">Offline Laboratory Orders</p></div><span class="pill"><span class="dot"></span><span>Offline</span></span></div>
+  <div class="notice" id="contextNotice">Open this laboratory workspace once while online so TotalCare can prepare the clinic laboratory catalog and consultation context for offline use.</div>
+  <div class="notice success hidden" id="successNotice"></div>
+  <div class="notice error hidden" id="errorNotice"></div>
+
+  <section class="card">
+    <h2>Prepared consultations</h2>
+    <p class="sub" style="margin-bottom:12px">Only consultations explicitly prepared while online are available. No live patient chart is loaded while offline.</p>
+    <div id="consultationList"></div>
+  </section>
+
+  <section class="card" id="orderCard" style="display:none">
+    <h2 id="orderTitle">Laboratory investigations</h2>
+    <div class="context" id="orderContext"></div>
+    <div class="tabs"><button type="button" class="secondary tab active" id="testsTab">Individual tests</button><button type="button" class="secondary tab" id="panelsTab">Panels</button></div>
+    <div id="testList"></div>
+    <div id="panelList" class="hidden"></div>
+    <div class="field" style="margin-top:12px">
+      <label for="billingMode">Billing / authorization</label>
+      <select id="billingMode">
+        <option value="pay_now">Pay now — routine</option>
+        <option value="charge_to_encounter">Charge to encounter — authorized</option>
+        <option value="deferred">Defer — order remains pending</option>
+      </select>
+    </div>
+    <div class="field"><label for="externalName">External test (optional)</label><input id="externalName" placeholder="Test performed outside the clinic"></div>
+    <p class="sub" style="margin:8px 0 12px">Emergency visits are re-checked at synchronization and automatically use encounter billing. Laboratory staff cannot collect a test until its financial state is paid or authorized.</p>
+    <button class="primary" id="saveBtn" type="button">Save laboratory order locally</button>
+  </section>
+
+  <section class="card">
+    <h2>Queued laboratory orders</h2>
+    <div id="queue"></div>
+  </section>
+  <div class="actions"><button class="secondary" id="refreshBtn" type="button">Refresh</button><button class="secondary" id="backBtn" type="button">Return to TotalCare</button></div>
+</main>
+<script>
+(function(){
+  'use strict';
+  var DB='totalcare-offline',VERSION=2,OUTBOX='outbox',CACHE='cache';
+  var context={};try{context=JSON.parse(localStorage.getItem('tc-offline-context')||'{}')}catch(e){}
+  var selected=null,tests=[],panels=[],selectedTests={},selectedPanels={};
+  var clinic=document.getElementById('clinic');if(context.clinicName)clinic.textContent=context.clinicName+(context.staffName?' · '+context.staffName:'');
+  if(context.clinicId&&context.staffId)document.getElementById('contextNotice').classList.add('hidden');
+  function openDb(){return new Promise(function(resolve,reject){var r=indexedDB.open(DB,VERSION);r.onerror=function(){reject(r.error||new Error('Unable to open offline database'))};r.onsuccess=function(){resolve(r.result)}})}
+  function all(store){return openDb().then(function(db){return new Promise(function(resolve,reject){var tx=db.transaction(store,'readonly'),req=tx.objectStore(store).getAll();req.onsuccess=function(){resolve(req.result||[])};req.onerror=function(){reject(req.error||new Error('Offline storage read failed'))};tx.oncomplete=function(){db.close()}})})}
+  function put(entry){return openDb().then(function(db){return new Promise(function(resolve,reject){var tx=db.transaction(OUTBOX,'readwrite');tx.objectStore(OUTBOX).put(entry);tx.oncomplete=function(){db.close();resolve()};tx.onerror=function(){reject(tx.error||new Error('Unable to save offline operation'))}})})}
+  function id(){return window.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2)}
+  function notice(el,msg){el.textContent=msg;el.classList.remove('hidden')}
+  function cachedContexts(){return all(CACHE).then(function(entries){var now=Date.now();return entries.filter(function(e){return e.key&&e.key.indexOf('consultation:'+(context.clinicId||'')+':')===0&&(!e.expiresAt||Date.parse(e.expiresAt)>now)&&e.data&&e.data.visitId})})}
+  function renderConsultations(){var root=document.getElementById('consultationList');root.innerHTML='';if(!context.clinicId||!context.staffId){root.innerHTML='<p class="sub">No prepared clinic session is available.</p>';return}cachedContexts().then(function(entries){if(!entries.length){root.innerHTML='<p class="sub">No consultation has been prepared for offline laboratory ordering.</p>';return}entries.forEach(function(e){var c=e.data;var row=document.createElement('div');row.className='item';var h=document.createElement('div');h.className='itemhead';var n=document.createElement('div');n.className='itemname';n.textContent=c.patientName||'Patient';var b=document.createElement('button');b.className='secondary';b.type='button';b.textContent='Order labs';b.onclick=function(){openOrder(c)};h.appendChild(n);h.appendChild(b);row.appendChild(h);var m=document.createElement('div');m.className='meta';m.textContent=(c.patientCode||'')+' · '+((c.labTests||[]).length)+' tests · '+((c.labPanels||[]).length)+' panels prepared';row.appendChild(m);root.appendChild(row)})})['catch'](function(e){notice(document.getElementById('errorNotice'),e.message)})}
+  function openOrder(c){selected=c;selectedTests={};selectedPanels={};tests=c.labTests||[];panels=c.labPanels||[];document.getElementById('orderCard').style.display='block';document.getElementById('orderTitle').textContent='Laboratory investigations — '+(c.patientName||'Patient');document.getElementById('orderContext').textContent=(c.patientCode||'')+' · Visit prepared while online. Catalog availability and billing are re-validated when synchronized.';renderTests();renderPanels();window.scrollTo({top:document.getElementById('orderCard').offsetTop-12,behavior:'smooth'})}
+  function renderTests(){var root=document.getElementById('testList');root.innerHTML='';if(!tests.length){root.innerHTML='<p class="sub">No individual tests were prepared.</p>';return}tests.forEach(function(t){var row=document.createElement('label');row.className='item';row.style.display='flex';row.style.alignItems='center';row.style.gap='9px';var cb=document.createElement('input');cb.type='checkbox';cb.checked=Boolean(selectedTests[t.catalogId]);cb.onchange=function(){if(cb.checked)selectedTests[t.catalogId]=true;else delete selectedTests[t.catalogId]};var name=document.createElement('span');name.style.flex='1';name.textContent=t.nameEn||t.nameFr;var price=document.createElement('span');price.className='meta';price.textContent=Number(t.priceXaf||0).toLocaleString()+' F';row.appendChild(cb);row.appendChild(name);row.appendChild(price);root.appendChild(row)})}
+  function renderPanels(){var root=document.getElementById('panelList');root.innerHTML='';if(!panels.length){root.innerHTML='<p class="sub">No laboratory panels were prepared.</p>';return}panels.forEach(function(p){var row=document.createElement('label');row.className='item';row.style.display='flex';row.style.alignItems='center';row.style.gap='9px';var cb=document.createElement('input');cb.type='checkbox';cb.checked=Boolean(selectedPanels[p.panelId]);cb.onchange=function(){if(cb.checked)selectedPanels[p.panelId]=true;else delete selectedPanels[p.panelId]};var name=document.createElement('span');name.style.flex='1';name.textContent=p.nameEn||p.nameFr;var price=document.createElement('span');price.className='meta';price.textContent=Number(p.priceXaf||0).toLocaleString()+' F';row.appendChild(cb);row.appendChild(name);row.appendChild(price);root.appendChild(row)})}
+  function saveOrder(){if(!selected)return;if(!context.clinicId||!context.staffId){notice(document.getElementById('contextNotice'),'Reconnect to TotalCare once while online before using offline laboratory work.');return}var items=[];Object.keys(selectedPanels).forEach(function(panelId){items.push({type:'panel',panelId:panelId})});Object.keys(selectedTests).forEach(function(catalogId){items.push({type:'individual_test',catalogId:catalogId})});var external=document.getElementById('externalName').value.trim();if(external)items.push({type:'external',name:external});if(!items.length){notice(document.getElementById('errorNotice'),'Select at least one test, panel, or external investigation.');return}var btn=document.getElementById('saveBtn');btn.disabled=true;var now=new Date().toISOString();var entry={id:id(),operation:'lab-order',clinicId:context.clinicId,staffId:context.staffId,payload:{visitId:selected.visitId,items:items,billingMode:document.getElementById('billingMode').value},createdAt:now,updatedAt:now,attempts:0,status:'pending'};put(entry).then(function(){notice(document.getElementById('successNotice'),'Laboratory order saved locally. It will synchronize automatically when the connection returns.');document.getElementById('orderCard').style.display='none';selected=null;return refresh()})['catch'](function(e){notice(document.getElementById('errorNotice'),e.message)})['finally'](function(){btn.disabled=false})}
+  function refresh(){return all(OUTBOX).then(function(entries){var mine=entries.filter(function(e){return !context.clinicId||e.clinicId===context.clinicId});var root=document.getElementById('queue');root.innerHTML='';mine.filter(function(e){return e.operation==='lab-order'}).sort(function(a,b){return b.createdAt.localeCompare(a.createdAt)}).slice(0,20).forEach(function(e){var row=document.createElement('div');row.className='item';var h=document.createElement('div');h.className='itemhead';var title=document.createElement('div');title.className='itemname';title.textContent='Laboratory order';var status=document.createElement('span');status.className='meta';status.textContent=e.status==='blocked'?'Needs review':e.status==='failed'?'Failed':e.status==='processing'?'Syncing':'Pending';h.appendChild(title);h.appendChild(status);row.appendChild(h);var m=document.createElement('div');m.className='meta';m.textContent=new Date(e.createdAt).toLocaleString();row.appendChild(m);root.appendChild(row)})})['catch'](function(e){notice(document.getElementById('errorNotice'),e.message)})}
+  document.getElementById('testsTab').onclick=function(){document.getElementById('testsTab').classList.add('active');document.getElementById('panelsTab').classList.remove('active');document.getElementById('testList').classList.remove('hidden');document.getElementById('panelList').classList.add('hidden')};
+  document.getElementById('panelsTab').onclick=function(){document.getElementById('panelsTab').classList.add('active');document.getElementById('testsTab').classList.remove('active');document.getElementById('panelList').classList.remove('hidden');document.getElementById('testList').classList.add('hidden')};
+  document.getElementById('saveBtn').onclick=saveOrder;document.getElementById('refreshBtn').onclick=function(){renderConsultations();refresh()};document.getElementById('backBtn').onclick=function(){window.location.href='/dashboard'};window.addEventListener('online',function(){window.location.href='/dashboard'});renderConsultations();refresh();
+})();
+</script>
+</body>
+</html>
