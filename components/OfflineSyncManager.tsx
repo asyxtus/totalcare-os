@@ -19,6 +19,8 @@ import { saveConsultationIdempotent } from '@/lib/actions/consultationOffline'
 import type { OfflineConsultationPayload } from '@/lib/actions/consultationOffline'
 import { createPrescriptionIdempotent } from '@/lib/actions/prescriptionOffline'
 import type { OfflinePrescriptionPayload } from '@/lib/actions/prescriptionOffline'
+import { createLabOrderIdempotent } from '@/lib/actions/labOffline'
+import type { OfflineLabOrderPayload } from '@/lib/actions/labOffline'
 import { hasWorkingConnection, recordOfflineRequestFailure, recordOfflineRequestSuccess } from '@/lib/offline/connectivity'
 
 const DUPLICATE_REVIEW = '[DUPLICATE_REVIEW]'
@@ -43,7 +45,7 @@ export default function OfflineSyncManager() {
 
         const pending = await listPendingOfflineOperations()
         for (const entry of pending) {
-          if (!['patient-registration', 'appointment-booking', 'triage-capture', 'consultation-completion', 'prescription-order'].includes(entry.operation)) continue
+          if (!['patient-registration', 'appointment-booking', 'triage-capture', 'consultation-completion', 'prescription-order', 'lab-order'].includes(entry.operation)) continue
 
           await markOfflineOperationProcessing(entry.id)
           try {
@@ -111,7 +113,7 @@ export default function OfflineSyncManager() {
                 await recordOfflineRequestFailure()
                 continue
               }
-            } else {
+            } else if (entry.operation === 'prescription-order') {
               const result = await createPrescriptionIdempotent(entry.id, {
                 ...(entry.payload as OfflinePrescriptionPayload),
                 clinicId: entry.clinicId,
@@ -124,6 +126,22 @@ export default function OfflineSyncManager() {
               }
               if (result.error || !result.saved || !result.prescriptionId) {
                 await markOfflineOperationFailed(entry.id, result.error ?? 'Prescription synchronization did not complete')
+                await recordOfflineRequestFailure()
+                continue
+              }
+            } else {
+              const result = await createLabOrderIdempotent(entry.id, {
+                ...(entry.payload as OfflineLabOrderPayload),
+                clinicId: entry.clinicId,
+                staffId: entry.staffId,
+              })
+              if (result.blocked) {
+                await markOfflineOperationBlocked(entry.id, result.error ?? 'Laboratory order requires review before synchronization.')
+                changed = true
+                continue
+              }
+              if (result.error || !result.saved || !result.labOrderId) {
+                await markOfflineOperationFailed(entry.id, result.error ?? 'Laboratory order synchronization did not complete')
                 await recordOfflineRequestFailure()
                 continue
               }
