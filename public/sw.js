@@ -5,12 +5,13 @@
 // offline workspace instead. That workspace can queue safe offline writes
 // into the same IndexedDB outbox used by the application.
 
-const STATIC_CACHE = 'totalcare-static-v2'
+const STATIC_CACHE = 'totalcare-static-v3'
 const STATIC_ASSETS = [
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/offline.html',
+  '/offline-lab.html',
 ]
 
 self.addEventListener('install', (event) => {
@@ -41,8 +42,8 @@ self.addEventListener('fetch', (event) => {
   // by the IndexedDB outbox, not by service-worker request replay.
   if (url.pathname.startsWith('/api/')) return
 
-  if (request.method === 'GET' && url.pathname === '/offline.html') {
-    event.respondWith(caches.match('/offline.html').then((cached) => cached || fetch(request)))
+  if (request.method === 'GET' && (url.pathname === '/offline.html' || url.pathname === '/offline-lab.html')) {
+    event.respondWith(caches.match(url.pathname).then((cached) => cached || fetch(request)))
     return
   }
 
