@@ -13,6 +13,7 @@ function operationLabel(operation: string, lang: 'fr' | 'en') {
     'triage-capture': ['Triage', 'Triage'],
     'consultation-completion': ['Consultation', 'Consultation completion'],
     'prescription-order': ['Ordonnance / médicament', 'Prescription / medication order'],
+    'lab-order': ['Examens de laboratoire', 'Laboratory investigation order'],
   }
   return labels[operation]?.[lang === 'fr' ? 0 : 1] ?? operation
 }
