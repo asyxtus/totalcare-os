@@ -12,6 +12,23 @@ export interface OfflineMedicationProduct {
   onHand: number
 }
 
+export interface OfflineLabTest {
+  id: string
+  catalogId: string
+  nameFr: string
+  nameEn: string | null
+  category: string | null
+  priceXaf: number
+}
+
+export interface OfflineLabPanel {
+  id: string
+  panelId: string
+  nameFr: string
+  nameEn: string | null
+  priceXaf: number
+}
+
 export interface OfflineConsultationContext {
   visitId: string
   consultationId: string
@@ -25,6 +42,8 @@ export interface OfflineConsultationContext {
   diagnosisCode: string
   treatmentPlan: string
   medications: OfflineMedicationProduct[]
+  labTests: OfflineLabTest[]
+  labPanels: OfflineLabPanel[]
 }
 
 export async function getOfflineConsultationContext(visitId: string): Promise<OfflineConsultationContext | null> {
@@ -63,6 +82,37 @@ export async function getOfflineConsultationContext(visitId: string): Promise<Of
     onHand: Number(p.on_hand ?? 0),
   }))
 
+  const { data: testRows } = await supabase
+    .from('clinic_lab_tests')
+    .select('id, lab_test_catalog_id, price_xaf, lab_test_catalog(id, name_fr, name_en, category)')
+    .eq('clinic_id', staff.clinicId)
+    .eq('is_active', true)
+    .order('lab_test_catalog(name_fr)', { ascending: true })
+
+  const labTests: OfflineLabTest[] = (testRows ?? []).map((row: any) => ({
+    id: row.id,
+    catalogId: row.lab_test_catalog_id,
+    nameFr: row.lab_test_catalog?.name_fr ?? 'Laboratory test',
+    nameEn: row.lab_test_catalog?.name_en ?? null,
+    category: row.lab_test_catalog?.category ?? null,
+    priceXaf: Number(row.price_xaf ?? 0),
+  }))
+
+  const { data: panelRows } = await supabase
+    .from('clinic_lab_panels')
+    .select('id, lab_panel_id, price_xaf, lab_panels(id, name_fr, name_en)')
+    .eq('clinic_id', staff.clinicId)
+    .eq('is_active', true)
+    .order('lab_panels(name_fr)', { ascending: true })
+
+  const labPanels: OfflineLabPanel[] = (panelRows ?? []).map((row: any) => ({
+    id: row.id,
+    panelId: row.lab_panel_id,
+    nameFr: row.lab_panels?.name_fr ?? 'Laboratory panel',
+    nameEn: row.lab_panels?.name_en ?? null,
+    priceXaf: Number(row.price_xaf ?? 0),
+  }))
+
   const patient = visit.patients as any
   return {
     visitId: visit.id,
@@ -77,5 +127,7 @@ export async function getOfflineConsultationContext(visitId: string): Promise<Of
     diagnosisCode: consultation.diagnosis_code ?? '',
     treatmentPlan: consultation.treatment_plan ?? '',
     medications,
+    labTests,
+    labPanels,
   }
 }
