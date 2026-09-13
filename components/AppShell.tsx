@@ -26,6 +26,7 @@ const NAV_ITEMS: { href:string; labelFr:string; labelEn:string; icon:LucideIcon;
   { href:'/patients', labelFr:'Patients', labelEn:'Patients', icon:Users, roles:['admin','doctor','nurse','receptionist'] },
   { href:'/pharmacy', labelFr:'Pharmacie', labelEn:'Pharmacy', icon:Pill, roles:['admin','pharmacist'] },
   { href:'/laboratory', labelFr:'Laboratoire', labelEn:'Laboratory', icon:Microscope, roles:['admin','lab_technician'] },
+  { href:'/offline-lab.html', labelFr:'Labo hors ligne', labelEn:'Offline Lab', icon:Microscope, roles:['admin','doctor'] },
   { href:'/imaging', labelFr:'Imagerie', labelEn:'Imaging', icon:ScanLine, roles:['admin','doctor','lab_technician'] },
   { href:'/billing', labelFr:'Facturation', labelEn:'Billing', icon:Receipt, roles:['admin','receptionist','billing_clerk'] },
   { href:'/admissions', labelFr:'Admissions', labelEn:'Admissions', icon:BedDouble, roles:['admin','nurse','doctor'] },
