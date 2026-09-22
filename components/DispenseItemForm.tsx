@@ -34,6 +34,7 @@ export default function DispenseItemForm({
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [quantity, setQuantity] = useState('')
+  const [manualUnitPrice, setManualUnitPrice] = useState('')
   const [dispensedChargeId, setDispensedChargeId] = useState<string | null>(null)
   const [patientSupplied, setPatientSupplied] = useState(false)
   // Product override — when pharmacist selects a different dosage
@@ -48,6 +49,12 @@ export default function DispenseItemForm({
   const selectedAlt = alternatives.find(a => a.product_id === overrideProductId)
   const effectiveOnHand = selectedAlt?.on_hand ?? onHand
   const effectivePriceXaf = selectedAlt?.sale_price_xaf ?? salePriceXaf
+  const selectedQuantity = Number(quantity)
+  const estimatedAmount = patientSupplied
+    ? 0
+    : selectedQuantity > 0
+      ? (effectivePriceXaf ?? Number(manualUnitPrice) || 0) * selectedQuantity
+      : 0
 
   async function handleSubmit(formData: FormData) {
     setError(null)
@@ -183,6 +190,8 @@ export default function DispenseItemForm({
             type="number"
             step="any"
             placeholder={lang === 'fr' ? 'Prix unitaire (FCFA)' : 'Unit price (FCFA)'}
+            value={manualUnitPrice}
+            onChange={e => setManualUnitPrice(e.target.value)}
             required
             style={{ ...inputStyle, width: '160px' }}
           />
@@ -215,6 +224,21 @@ export default function DispenseItemForm({
           </p>
         )}
       </form>
+
+      {!patientSupplied && selectedQuantity > 0 && (effectivePriceXaf !== undefined || (needsManualPrice && Number(manualUnitPrice) > 0)) && (
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px',
+          padding: '8px 10px', marginTop: '2px', borderRadius: 'var(--radius-sm)',
+          background: 'var(--color-success-bg)', border: '1px solid var(--color-border)',
+        }}>
+          <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+            {lang === 'fr' ? 'Montant à dispenser' : 'Amount for this dispensing'} · {selectedQuantity} × {(effectivePriceXaf ?? Number(manualUnitPrice)).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US')} FCFA
+          </span>
+          <strong style={{ fontSize: '14px', fontFamily: 'var(--font-mono)' }}>
+            {estimatedAmount.toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US')} FCFA
+          </strong>
+        </div>
+      )}
 
       {dispensedChargeId && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px', color: 'var(--color-success-text)' }}>
