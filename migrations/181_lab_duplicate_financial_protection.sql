@@ -50,6 +50,7 @@ declare
   v_existing_order_ids uuid[] := array[]::uuid[];
   v_existing_charge_ids uuid[] := array[]::uuid[];
   v_result record;
+  v_items_array jsonb[];
 begin
   if p_billing_mode not in ('pay_now','charge_to_encounter','deferred') then
     raise exception 'Invalid laboratory billing mode: %', p_billing_mode;
@@ -71,10 +72,11 @@ begin
     raise exception 'Visit % not found', p_visit_id;
   end if;
 
-  foreach v_item in array (
-    select array_agg(value order by ordinality)
-    from jsonb_array_elements(p_items) with ordinality
-  )
+  select array_agg(value order by ordinality)
+    into v_items_array
+  from jsonb_array_elements(p_items) with ordinality;
+
+  foreach v_item in array v_items_array
   loop
     if v_item->>'type' = 'panel' then
       v_key := 'panel:' || lower(trim(v_item->>'panel_id'));
