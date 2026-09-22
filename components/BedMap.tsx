@@ -3,6 +3,9 @@
 // components/BedMap.tsx
 import { useLang } from '@/lib/i18n/LangContext'
 import DischargeRow from '@/components/DischargeRow'
+import { releaseOrphanBedAction } from '@/lib/actions/admissions'
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 interface Bed {
   id: string; bed_number: string; status: string
   patient_name?: string; patient_code?: string; admission_id?: string; admission_number?: string; bed_assigned_at?: string; days_admitted?: number
@@ -13,6 +16,17 @@ interface Ward {
 
 export default function BedMap({ wards }: { wards: Ward[] }) {
   const lang = useLang()
+  const router = useRouter()
+  const [releasingBedId, setReleasingBedId] = useState<string | null>(null)
+
+  async function releaseOrphanBed(bedId: string) {
+    setReleasingBedId(bedId)
+    const result = await releaseOrphanBedAction(bedId)
+    setReleasingBedId(null)
+    if (result?.error) return window.alert(result.error)
+    router.refresh()
+  }
+
   if (wards.length === 0) {
     return <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{lang==='fr'?'Aucun service créé.':'No wards created.'}</p>
   }
@@ -56,38 +70,32 @@ export default function BedMap({ wards }: { wards: Ward[] }) {
                       <p style={{ fontSize: '11px', margin: 0, color: isOccupied ? 'var(--color-warning-text)' : 'var(--color-success-text)' }}>
                         {bed.status}
                       </p>
-                      {isOccupied && bed.patient_name && (
-                        <div style={{
-                          marginTop: '8px',
-                          paddingTop: '8px',
-                          borderTop: '1px solid var(--color-border)',
-                        }}>
-                          <p style={{ fontSize: '12px', margin: 0, fontWeight: 650, lineHeight: 1.3 }}>{bed.patient_name}</p>
-                          {bed.patient_code && (
-                            <p style={{ fontSize: '10px', color: 'var(--color-text-secondary)', margin: '3px 0 0', fontFamily: 'var(--font-mono)' }}>
-                              {bed.patient_code}
-                            </p>
-                          )}
-                          <p style={{ fontSize: '10px', color: 'var(--color-text-secondary)', margin: '3px 0 0', fontFamily: 'var(--font-mono)' }}>
-                            {bed.admission_number} · {lang === 'fr' ? 'Jour' : 'Day'} {bed.days_admitted}
-                          </p>
-                          {bed.admission_id && (
-                            <div style={{ marginTop: '8px' }}>
-                              <DischargeRow
-                                startExpanded={false}
-                                hideHeader={false}
-                                admission={{
-                                  id: bed.admission_id,
-                                  admission_number: bed.admission_number ?? '—',
-                                  patient_name: bed.patient_name,
-                                  ward_name: ward.name,
-                                  bed_number: bed.bed_number,
-                                }}
-                              />
-                            </div>
+                      {isOccupied && (
+                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--color-border)' }}>
+                          {bed.admission_id && bed.patient_name ? (
+                            <>
+                              <p style={{ fontSize: '12px', margin: 0, fontWeight: 650, lineHeight: 1.3 }}>{bed.patient_name}</p>
+                              {bed.patient_code && <p style={{ fontSize: '10px', color: 'var(--color-text-secondary)', margin: '3px 0 0', fontFamily: 'var(--font-mono)' }}>{bed.patient_code}</p>}
+                              <p style={{ fontSize: '10px', color: 'var(--color-text-secondary)', margin: '3px 0 0', fontFamily: 'var(--font-mono)' }}>{bed.admission_number} · {lang === 'fr' ? 'Jour' : 'Day'} {bed.days_admitted}</p>
+                              <div style={{ marginTop: '7px' }}>
+                                <DischargeRow
+                                  startExpanded={false}
+                                  hideHeader={false}
+                                  admission={{ id: bed.admission_id, admission_number: bed.admission_number ?? '—', patient_name: bed.patient_name, ward_name: ward.name, bed_number: bed.bed_number }}
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <p style={{ fontSize: '10px', fontWeight: 650, color: 'var(--color-critical-text)', margin: 0 }}>{lang === 'fr' ? 'Aucune admission liée' : 'No linked admission'}</p>
+                              <p style={{ fontSize: '9px', color: 'var(--color-text-secondary)', margin: '3px 0 7px', lineHeight: 1.3 }}>{lang === 'fr' ? 'Lit marqué occupé sans patient admis associé.' : 'Bed is marked occupied but has no active admitted patient linked.'}</p>
+                              <button type="button" onClick={() => releaseOrphanBed(bed.id)} disabled={releasingBedId === bed.id} style={{ width: '100%', padding: '6px 7px', border: '1px solid var(--color-critical-text)', borderRadius: 'var(--radius-sm)', background: 'var(--color-surface)', color: 'var(--color-critical-text)', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
+                                {releasingBedId === bed.id ? '…' : (lang === 'fr' ? 'Libérer le lit' : 'Release bed')}
+                              </button>
+                            </>
                           )}
                         </div>
-                      )}
+                      )}}
                     </div>
                   )
                 })}
