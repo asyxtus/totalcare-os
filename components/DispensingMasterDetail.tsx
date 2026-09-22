@@ -87,53 +87,104 @@ export default function DispensingMasterDetail({
   }
 
   return (
-    <div style={{
+    <div className="dispensing-master-detail" style={{
       display: 'grid',
-      gridTemplateColumns: 'minmax(280px, 340px) minmax(0, 1fr)',
-      gap: '1rem',
-      alignItems: 'start',
+      gridTemplateColumns: 'minmax(300px, 360px) minmax(0, 1fr)',
+      gap: '14px',
+      height: 'calc(100vh - 155px)',
+      minHeight: '560px',
+      alignItems: 'stretch',
     }}>
-      <section style={{ position: 'sticky', top: '12px', alignSelf: 'start', minWidth: 0 }}>
+      <style>{`
+        .dispensing-queue-panel { min-height: 0; }
+        .dispensing-queue-list { scrollbar-width: thin; }
+        .dispensing-detail-panel { min-height: 0; }
+        @media (max-width: 900px) {
+          .dispensing-master-detail {
+            grid-template-columns: 1fr !important;
+            height: auto !important;
+            min-height: 0 !important;
+          }
+          .dispensing-queue-panel {
+            height: 420px !important;
+          }
+          .dispensing-detail-panel {
+            height: auto !important;
+            max-height: none !important;
+          }
+        }
+      `}</style>
+
+      <section className="dispensing-queue-panel" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minWidth: 0,
+        height: '100%',
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-md)',
+        overflow: 'hidden',
+      }}>
         <div style={{
-          background: 'var(--color-bg)',
-          paddingBottom: '8px',
+          flex: '0 0 auto',
+          padding: '13px',
+          background: 'var(--color-surface)',
+          borderBottom: '1px solid var(--color-border)',
         }}>
-          <label htmlFor="dispensing-queue-search" style={{
-            display: 'block', fontSize: '11px', fontWeight: 600,
-            color: 'var(--color-text-secondary)', marginBottom: '5px',
-          }}>
-            {lang === 'fr' ? 'Rechercher une ordonnance' : 'Find a prescription'}
-          </label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '7px' }}>
+            <div>
+              <p style={{ margin: 0, fontSize: '14px', fontWeight: 650, color: 'var(--color-text-primary)' }}>
+                {lang === 'fr' ? 'File de dispensation' : 'Dispensing queue'}
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: '10px', color: 'var(--color-text-secondary)' }}>
+                {search
+                  ? groups.length + ' ' + (lang === 'fr' ? 'patient(s) trouvé(s)' : 'patient(s) found')
+                  : prescriptions.length + ' ' + (lang === 'fr' ? 'ordonnance(s) en attente' : 'prescription(s) waiting')}
+              </p>
+            </div>
+            <span style={{
+              fontSize: '10px', fontWeight: 600, padding: '4px 7px',
+              borderRadius: '999px', background: 'var(--color-warning-bg)',
+              color: 'var(--color-warning-text)', whiteSpace: 'nowrap',
+            }}>
+              {lang === 'fr' ? 'À traiter' : 'To dispense'}
+            </span>
+          </div>
+
           <input
             id="dispensing-queue-search"
+            aria-label={lang === 'fr' ? 'Rechercher une ordonnance' : 'Find a prescription'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={lang === 'fr' ? 'Nom, code patient, médecin ou médicament…' : 'Patient, code, doctor or medicine…'}
             style={{
-              width: '100%', boxSizing: 'border-box', padding: '9px 11px',
+              width: '100%', boxSizing: 'border-box', padding: '10px 11px',
               border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
-              background: 'var(--color-surface)', color: 'var(--color-text-primary)',
+              background: 'var(--color-bg)', color: 'var(--color-text-primary)',
               fontSize: '12px', outline: 'none',
             }}
           />
-          <p style={{ fontSize: '10px', color: 'var(--color-text-secondary)', margin: '5px 2px 0' }}>
-            {search
-              ? groups.length + ' ' + (lang === 'fr' ? 'patient(s) trouvé(s)' : 'patient(s) found')
-              : prescriptions.length + ' ' + (lang === 'fr' ? 'ordonnance(s) en attente' : 'prescription(s) waiting')}
-          </p>
         </div>
 
-        <div style={{
-          display: 'flex', flexDirection: 'column', gap: '8px',
-          maxHeight: 'calc(100vh - 190px)', overflowY: 'auto', paddingRight: '4px',
+        <div className="dispensing-queue-list" style={{
+          flex: '1 1 auto',
+          minHeight: 0,
+          overflowY: 'auto',
+          padding: '10px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '7px',
         }}>
           {groups.length === 0 ? (
             <div style={{
-              padding: '16px 12px', border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)', background: 'var(--color-surface)',
-              fontSize: '12px', color: 'var(--color-text-secondary)',
+              padding: '18px 12px',
+              border: '1px dashed var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-bg)',
+              fontSize: '12px',
+              color: 'var(--color-text-secondary)',
             }}>
-              {lang === 'fr' ? 'Aucune correspondance.' : 'No matching prescriptions.'}
+              {lang === 'fr' ? 'Aucune ordonnance correspondante.' : 'No matching prescriptions.'}
             </div>
           ) : groups.map((group) => {
             const first = group[0]
@@ -149,57 +200,94 @@ export default function DispensingMasterDetail({
 
             return (
               <div key={first.patient_code || first.patient_name} style={{
-                border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
-                background: 'var(--color-surface)', overflow: 'hidden',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-surface)',
+                overflow: 'hidden',
+                flex: '0 0 auto',
               }}>
                 <div style={{
-                  padding: '9px 12px', borderBottom: '1px solid var(--color-border-subtle)',
+                  padding: '10px 11px',
                   background: 'var(--color-bg)',
+                  borderBottom: '1px solid var(--color-border-subtle)',
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
-                    <p style={{ fontSize: '13px', fontWeight: 600, margin: 0, color: 'var(--color-text-primary)' }}>
-                      {first.patient_name}
-                    </p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{
+                        fontSize: '12px', fontWeight: 650, margin: 0,
+                        color: 'var(--color-text-primary)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {first.patient_name}
+                      </p>
+                      <p style={{
+                        fontSize: '9px', fontFamily: 'var(--font-mono)',
+                        color: 'var(--color-text-secondary)', margin: '3px 0 0',
+                      }}>
+                        {first.patient_code}
+                      </p>
+                    </div>
                     <span style={{
-                      fontSize: '10px', padding: '2px 7px', borderRadius: '999px', flexShrink: 0,
-                      background: meta.bg, color: meta.text,
+                      fontSize: '9px', padding: '3px 7px', borderRadius: '999px',
+                      flexShrink: 0, background: meta.bg, color: meta.text,
                     }}>
                       {lang === 'fr' ? meta.fr : meta.en}
                     </span>
                   </div>
-                  <p style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
-                    {first.patient_code} · {totalRemaining} {lang === 'fr' ? 'article(s)' : 'item(s)'}
-                    {group.length > 1 && ' · ' + group.length + ' ' + (lang === 'fr' ? 'ordonnances' : 'prescriptions')}
-                  </p>
                 </div>
 
                 {group.map((rx) => {
-                  const remaining = rx.items.filter((it) => it.quantity_dispensed < it.quantity_prescribed).length
+                  const remainingItems = rx.items.filter((it) => it.quantity_dispensed < it.quantity_prescribed)
                   const isSelected = rx.id === selectedId
                   const rxMeta = STATUS_META[statusOf(rx)]
+                  const itemNames = rx.items.map((it) => it.product_name ?? it.drug_name_freetext ?? 'Medication')
                   return (
                     <button
                       key={rx.id}
+                      type="button"
                       onClick={() => setSelectedId(rx.id)}
+                      aria-pressed={isSelected}
                       style={{
-                        display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', cursor: 'pointer',
-                        border: 'none', borderBottom: '1px solid var(--color-border-subtle)',
-                        background: isSelected ? 'var(--color-success-bg)' : 'transparent',
+                        display: 'block',
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '10px 11px',
+                        cursor: 'pointer',
+                        border: 'none',
+                        borderTop: '1px solid var(--color-border-subtle)',
+                        background: isSelected ? 'var(--color-success-bg)' : 'var(--color-surface)',
+                        boxShadow: isSelected ? 'inset 3px 0 0 var(--color-accent)' : 'none',
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)' }}>
-                          {rx.id.slice(0, 8)}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '9px', fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)' }}>
+                          Rx {rx.id.slice(0, 8)}
                         </span>
-                        {group.length > 1 && (
-                          <span style={{ fontSize: '9px', color: rxMeta.text }}>
-                            {lang === 'fr' ? rxMeta.fr : rxMeta.en}
-                          </span>
-                        )}
+                        <span style={{ fontSize: '9px', color: rxMeta.text }}>
+                          {lang === 'fr' ? rxMeta.fr : rxMeta.en}
+                        </span>
                       </div>
-                      <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
-                        {remaining} {lang === 'fr' ? (remaining === 1 ? 'article' : 'articles') : (remaining === 1 ? 'item' : 'items')} · {rx.prescribing_doctor_name}
+
+                      <p style={{
+                        fontSize: '11px', fontWeight: 550,
+                        color: 'var(--color-text-primary)', margin: '5px 0 3px',
+                        lineHeight: 1.35,
+                      }}>
+                        {itemNames.slice(0, 2).join(' · ')}
+                        {itemNames.length > 2 ? ' +' + (itemNames.length - 2) : ''}
                       </p>
+
+                      <div style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        gap: '8px', fontSize: '9px', color: 'var(--color-text-secondary)',
+                      }}>
+                        <span>
+                          {remainingItems.length} {lang === 'fr'
+                            ? (remainingItems.length === 1 ? 'article restant' : 'articles restants')
+                            : (remainingItems.length === 1 ? 'item remaining' : 'items remaining')}
+                        </span>
+                        <span>{rx.prescribing_doctor_name}</span>
+                      </div>
                     </button>
                   )
                 })}
@@ -209,11 +297,15 @@ export default function DispensingMasterDetail({
         </div>
       </section>
 
-      <section style={{
-        position: 'sticky', top: '12px', alignSelf: 'start', minWidth: 0,
-        maxHeight: 'calc(100vh - 24px)', overflowY: 'auto',
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)', padding: '1.25rem', boxSizing: 'border-box',
+      <section className="dispensing-detail-panel" style={{
+        height: '100%',
+        minWidth: 0,
+        overflowY: 'auto',
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-md)',
+        padding: '18px',
+        boxSizing: 'border-box',
       }}>
         {selected ? (
           <PrescriptionDispenseDetail
@@ -223,7 +315,9 @@ export default function DispensingMasterDetail({
             currentStaffRole={currentStaffRole}
           />
         ) : (
-          <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{lang==='fr'?'Sélectionnez une ordonnance à gauche.':'Select a prescription on the left.'}</p>
+          <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
+            {lang === 'fr' ? 'Sélectionnez une ordonnance à gauche.' : 'Select a prescription on the left.'}
+          </p>
         )}
       </section>
     </div>
