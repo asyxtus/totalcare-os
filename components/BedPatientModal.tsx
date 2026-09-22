@@ -29,7 +29,7 @@ export default function BedPatientModal({ bed, onClose }: { bed: BedSummary; onC
     if (!bed.admission_id) return
     getAdmissionBedSummaryAction(bed.admission_id).then((result) => {
       if (!active) return
-      if ('error' in result) setError(result.error)
+      if ('error' in result) setError(result.error ?? 'Impossible de charger le résumé du patient.')
       else setSummary(result)
       setLoading(false)
     })
