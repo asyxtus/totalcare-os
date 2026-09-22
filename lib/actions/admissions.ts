@@ -212,3 +212,62 @@ export async function releaseOrphanBedAction(bedId: string) {
   revalidatePath('/admissions')
   return { success: true }
 }
+
+
+export async function getAdmissionBedSummaryAction(admissionId: string) {
+  const staff = await getCurrentStaff()
+  const supabase = await createClient()
+
+  const { data: admission, error: admissionError } = await supabase
+    .from('admissions')
+    .select('id, admission_number, admission_reason, status, visit_id, bed_assigned_at, patients(full_name, patient_code, allergies), wards(name), beds(bed_number)')
+    .eq('id', admissionId)
+    .eq('clinic_id', staff.clinicId)
+    .maybeSingle()
+
+  if (admissionError) return { error: 'Impossible de charger le résumé du patient.' }
+  if (!admission) return { error: 'Admission introuvable.' }
+
+  const [{ data: notes }, { data: tasks }, { data: vitals }, { data: prescriptions }, { data: labOrders }] = await Promise.all([
+    supabase.from('inpatient_notes').select('id, note, round_type, recorded_at').eq('admission_id', admissionId).order('recorded_at', { ascending: false }).limit(5),
+    supabase.from('care_tasks').select('id, task_description, completed_at').eq('admission_id', admissionId).order('completed_at', { ascending: false }).limit(8),
+    supabase.from('vital_signs').select('id, recorded_at, blood_pressure_systolic, blood_pressure_diastolic, heart_rate, temperature_celsius, respiratory_rate, oxygen_saturation').eq('admission_id', admissionId).order('recorded_at', { ascending: false }).limit(1),
+    supabase.from('prescriptions').select('id').eq('visit_id', admission.visit_id),
+    supabase.from('lab_orders').select('id, ordered_at').eq('visit_id', admission.visit_id).order('ordered_at', { ascending: false }),
+  ])
+
+  const prescriptionIds = (prescriptions ?? []).map((p: any) => p.id)
+  const { data: prescriptionItems } = prescriptionIds.length
+    ? await supabase.from('prescription_items').select('id').in('prescription_id', prescriptionIds)
+    : { data: [] }
+
+  const labOrderIds = (labOrders ?? []).map((o: any) => o.id)
+  const { data: labItems } = labOrderIds.length
+    ? await supabase.from('lab_order_items').select('id, status').in('lab_order_id', labOrderIds)
+    : { data: [] }
+
+  const completedTasks = (tasks ?? []).filter((t: any) => t.completed_at).length
+  const pendingTasks = (tasks ?? []).filter((t: any) => !t.completed_at).length
+  const completedLabs = (labItems ?? []).filter((l: any) => ['completed', 'verified'].includes(l.status)).length
+  const pendingLabs = (labItems ?? []).filter((l: any) => !['completed', 'verified', 'cancelled'].includes(l.status)).length
+
+  return {
+    success: true,
+    admission: {
+      id: admission.id,
+      admission_number: admission.admission_number,
+      admission_reason: admission.admission_reason,
+      status: admission.status,
+      visit_id: admission.visit_id,
+      bed_assigned_at: admission.bed_assigned_at,
+      patient: admission.patients,
+      ward: admission.wards,
+      bed: admission.beds,
+    },
+    notes: notes ?? [],
+    tasks: { completed: completedTasks, pending: pendingTasks, total: (tasks ?? []).length },
+    medications: { prescriptions: prescriptionIds.length, items: (prescriptionItems ?? []).length },
+    labs: { orders: labOrderIds.length, completed: completedLabs, pending: pendingLabs },
+    latestVitals: vitals?.[0] ?? null,
+  }
+}
