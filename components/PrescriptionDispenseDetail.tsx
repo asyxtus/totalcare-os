@@ -41,11 +41,59 @@ export default function PrescriptionDispenseDetail({
   const lang = useLang()
   return (
     <div>
-      <div style={{ marginBottom: '1rem' }}>
-        <p style={{ fontSize: '16px', fontWeight: 500, margin: 0 }}>{prescription.patient_name}</p>
-        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
-          {prescription.patient_code} · {lang==='fr'?'Prescrit par':'Prescribed by'} {prescription.prescribing_doctor_name}
-        </p>
+      <div style={{
+        position: 'sticky',
+        top: '-18px',
+        zIndex: 3,
+        margin: '-18px -18px 14px',
+        padding: '16px 18px 13px',
+        background: 'var(--color-surface)',
+        borderBottom: '1px solid var(--color-border)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '18px', fontWeight: 650, margin: 0, color: 'var(--color-text-primary)' }}>
+              {prescription.patient_name}
+            </p>
+            <p style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>
+              {prescription.patient_code} · Rx {prescription.id.slice(0, 8)}
+            </p>
+          </div>
+          <span style={{
+            fontSize: '10px', padding: '4px 8px', borderRadius: '999px',
+            background: prescription.requires_review ? 'var(--color-critical-bg)' : 'var(--color-success-bg)',
+            color: prescription.requires_review ? 'var(--color-critical-text)' : 'var(--color-success-text)',
+            flexShrink: 0,
+          }}>
+            {prescription.requires_review
+              ? (lang === 'fr' ? 'Révision requise' : 'Review required')
+              : (lang === 'fr' ? 'À dispenser' : 'Ready to dispense')}
+          </span>
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+          gap: '7px',
+          marginTop: '11px',
+        }}>
+          <div style={{ padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg)' }}>
+            <div style={{ fontSize: '9px', color: 'var(--color-text-secondary)' }}>
+              {lang === 'fr' ? 'Prescripteur' : 'Prescriber'}
+            </div>
+            <div style={{ fontSize: '11px', fontWeight: 550, marginTop: '2px' }}>
+              {prescription.prescribing_doctor_name}
+            </div>
+          </div>
+          <div style={{ padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg)' }}>
+            <div style={{ fontSize: '9px', color: 'var(--color-text-secondary)' }}>
+              {lang === 'fr' ? 'Médicaments' : 'Medications'}
+            </div>
+            <div style={{ fontSize: '11px', fontWeight: 550, marginTop: '2px' }}>
+              {items.length} {lang === 'fr' ? (items.length === 1 ? 'article' : 'articles') : (items.length === 1 ? 'item' : 'items')}
+            </div>
+          </div>
+        </div>
       </div>
 
       {prescription.allergies && (
