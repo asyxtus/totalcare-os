@@ -95,7 +95,7 @@ export default function BedMap({ wards }: { wards: Ward[] }) {
                             </>
                           )}
                         </div>
-                      )}}
+                      )}
                     </div>
                   )
                 })}
