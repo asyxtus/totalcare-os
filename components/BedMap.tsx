@@ -64,14 +64,20 @@ export default function BedMap({ wards }: { wards: Ward[] }) {
                   const bg = isOccupied ? 'var(--color-warning-bg)' : bed.status === 'available' ? 'var(--color-success-bg)' : 'var(--color-bg)'
                   const border = isOccupied ? '1px solid var(--color-warning-text)' : bed.status === 'available' ? '1px solid var(--color-success-text)' : '1px solid var(--color-border)'
                   return (
-                    <button
+                    <div
                       key={bed.id}
-                      type="button"
+                      role={isOccupied && bed.admission_id ? 'button' : undefined}
+                      tabIndex={isOccupied && bed.admission_id ? 0 : undefined}
                       onClick={() => isOccupied && bed.admission_id ? setSelectedBed(bed) : undefined}
-                      disabled={isOccupied && !bed.admission_id}
+                      onKeyDown={(e) => {
+                        if (isOccupied && bed.admission_id && (e.key === 'Enter' || e.key === ' ')) {
+                          e.preventDefault()
+                          setSelectedBed(bed)
+                        }
+                      }}
                       style={{
                         display: 'block', width: '100%', minHeight: isOccupied && bed.admission_id ? '150px' : '90px',
-                        textAlign: 'left', background: bg, border, borderRadius: 'var(--radius-sm)', padding: '12px',
+                        boxSizing: 'border-box', textAlign: 'left', background: bg, border, borderRadius: 'var(--radius-sm)', padding: '12px',
                         cursor: isOccupied && bed.admission_id ? 'pointer' : 'default',
                         color: 'var(--color-text-primary)',
                       }}
@@ -104,7 +110,7 @@ export default function BedMap({ wards }: { wards: Ward[] }) {
                           )}
                         </div>
                       )}
-                    </button>
+                    </div>
                   )
                 })}
               </div>
