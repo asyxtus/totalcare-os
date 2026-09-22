@@ -122,12 +122,13 @@ export default function PrescriptionDispenseDetail({
               </div>
             )
           })}
-          {/* Total dispensing cost — cashier needs this to set up the invoice */}
+          {/* Remaining medication value — only the quantity still outstanding is included.
+              Actual dispensing charges are created from the quantity the pharmacist enters. */}
           {(() => {
-            const total = items
+            const remainingTotal = items
               .filter(i => i.sale_price_xaf)
-              .reduce((sum, i) => sum + (i.sale_price_xaf! * i.quantity_prescribed), 0)
-            if (total === 0) return null
+              .reduce((sum, i) => sum + (i.sale_price_xaf! * Math.max(0, i.quantity_prescribed - i.quantity_dispensed)), 0)
+            if (remainingTotal === 0) return null
             return (
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -136,10 +137,10 @@ export default function PrescriptionDispenseDetail({
                 border: '1px solid var(--color-border)',
               }}>
                 <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-                  {lang === 'fr' ? 'Total ordonnance (indicatif)' : 'Prescription total (indicative)'}
+                  {lang === 'fr' ? 'Valeur restante à dispenser' : 'Remaining value to dispense'}
                 </span>
                 <span style={{ fontSize: '15px', fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>
-                  {total.toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US')} FCFA
+                  {remainingTotal.toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US')} FCFA
                 </span>
               </div>
             )
