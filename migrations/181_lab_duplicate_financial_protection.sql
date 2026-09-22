@@ -308,12 +308,14 @@ begin
   end loop;
 
   -- Is there already an open invoice containing these exact charges?
-  select min(ii.invoice_id)
+  select ii.invoice_id
     into v_candidate_invoice_id
   from public.invoice_items ii
   join public.invoices i on i.id = ii.invoice_id
   where ii.service_charge_id = any(v_charge_ids)
-    and i.status in ('unpaid','partial');
+    and i.status in ('unpaid','partial')
+  order by ii.invoice_id
+  limit 1;
 
   if v_candidate_invoice_id is not null then
     select count(*)
