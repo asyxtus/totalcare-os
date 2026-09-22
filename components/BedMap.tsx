@@ -2,9 +2,10 @@
 
 // components/BedMap.tsx
 import { useLang } from '@/lib/i18n/LangContext'
+import DischargeRow from '@/components/DischargeRow'
 interface Bed {
   id: string; bed_number: string; status: string
-  patient_name?: string; admission_number?: string; days_admitted?: number
+  patient_name?: string; patient_code?: string; admission_id?: string; admission_number?: string; bed_assigned_at?: string; days_admitted?: number
 }
 interface Ward {
   id: string; name: string; ward_type: string | null; capacity: number | null; beds: Bed[]
@@ -56,12 +57,36 @@ export default function BedMap({ wards }: { wards: Ward[] }) {
                         {bed.status}
                       </p>
                       {isOccupied && bed.patient_name && (
-                        <>
-                          <p style={{ fontSize: '12px', margin: '6px 0 0', fontWeight: 500 }}>{bed.patient_name}</p>
-                          <p style={{ fontSize: '10px', color: 'var(--color-text-secondary)', margin: '2px 0 0', fontFamily: 'var(--font-mono)' }}>
-                            {bed.admission_number} · Jour {bed.days_admitted}
+                        <div style={{
+                          marginTop: '8px',
+                          paddingTop: '8px',
+                          borderTop: '1px solid var(--color-border)',
+                        }}>
+                          <p style={{ fontSize: '12px', margin: 0, fontWeight: 650, lineHeight: 1.3 }}>{bed.patient_name}</p>
+                          {bed.patient_code && (
+                            <p style={{ fontSize: '10px', color: 'var(--color-text-secondary)', margin: '3px 0 0', fontFamily: 'var(--font-mono)' }}>
+                              {bed.patient_code}
+                            </p>
+                          )}
+                          <p style={{ fontSize: '10px', color: 'var(--color-text-secondary)', margin: '3px 0 0', fontFamily: 'var(--font-mono)' }}>
+                            {bed.admission_number} · {lang === 'fr' ? 'Jour' : 'Day'} {bed.days_admitted}
                           </p>
-                        </>
+                          {bed.admission_id && (
+                            <div style={{ marginTop: '8px' }}>
+                              <DischargeRow
+                                startExpanded={false}
+                                hideHeader={false}
+                                admission={{
+                                  id: bed.admission_id,
+                                  admission_number: bed.admission_number ?? '—',
+                                  patient_name: bed.patient_name,
+                                  ward_name: ward.name,
+                                  bed_number: bed.bed_number,
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   )
