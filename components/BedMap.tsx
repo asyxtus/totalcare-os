@@ -23,7 +23,7 @@ export default function BedMap({ wards }: { wards: Ward[] }) {
     setReleasingBedId(bedId)
     const result = await releaseOrphanBedAction(bedId)
     setReleasingBedId(null)
-    if (result?.error) return window.alert(result.error)
+    if ('error' in result) return window.alert(result.error)
     router.refresh()
   }
 
