@@ -53,7 +53,7 @@ export default function DispenseItemForm({
   const estimatedAmount = patientSupplied
     ? 0
     : selectedQuantity > 0
-      ? (effectivePriceXaf ?? Number(manualUnitPrice) || 0) * selectedQuantity
+      ? ((effectivePriceXaf ?? Number(manualUnitPrice)) || 0) * selectedQuantity
       : 0
 
   async function handleSubmit(formData: FormData) {
