@@ -53,116 +53,168 @@ export default function DispensingMasterDetail({
 }) {
   const lang = useLang()
   const [selectedId, setSelectedId] = useState<string | null>(prescriptions[0]?.id ?? null)
+  const [search, setSearch] = useState('')
 
   const selected = prescriptions.find((p) => p.id === selectedId) ?? null
 
-  // Groups prescriptions under one header per patient (by patient_code —
-  // already unique per patient, no server change needed to get a real
-  // patient id). A patient with several separate prescriptions — common
-  // for an admitted patient, since inpatient prescriptions are sent to
-  // pharmacy one medication at a time — previously repeated their name
-  // once per prescription card with no visual link between them.
-  // Grouping is purely visual: each prescription row still maps 1:1 to
-  // the existing selection/detail behavior, nothing about how dispensing
-  // itself works changes.
+  // The queue and detail panel scroll independently. This keeps the selected
+  // prescription visible while the pharmacist searches a long queue.
   const groups = useMemo(() => {
+    const query = search.trim().toLowerCase()
     const map = new Map<string, QueuePrescription[]>()
+
     for (const rx of prescriptions) {
+      const haystack = [
+        rx.patient_name,
+        rx.patient_code,
+        rx.prescribing_doctor_name,
+        rx.id,
+        ...rx.items.map((it) => it.product_name ?? it.drug_name_freetext ?? ''),
+      ].join(' ').toLowerCase()
+
+      if (query && !haystack.includes(query)) continue
+
       const key = rx.patient_code || rx.patient_name
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(rx)
     }
+
     return Array.from(map.values())
-  }, [prescriptions])
+  }, [prescriptions, search])
 
   if (prescriptions.length === 0) {
     return <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{lang==='fr'?'Aucune ordonnance en attente.':'No pending prescriptions.'}</p>
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1.25rem', alignItems: 'start' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {groups.map((group) => {
-          const first = group[0]
-          const totalRemaining = group.reduce(
-            (sum, rx) => sum + rx.items.filter((it) => it.quantity_dispensed < it.quantity_prescribed).length,
-            0
-          )
-          // Most urgent status across the whole group wins the header badge —
-          // a patient with one prescription needing review shouldn't look
-          // like a routine "pending" case just because their other
-          // prescription happens to be ordinary.
-          const groupStatus: 'review' | 'partial' | 'pending' =
-            group.some((rx) => statusOf(rx) === 'review') ? 'review'
-            : group.some((rx) => statusOf(rx) === 'partial') ? 'partial'
-            : 'pending'
-          const meta = STATUS_META[groupStatus]
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'minmax(280px, 340px) minmax(0, 1fr)',
+      gap: '1rem',
+      alignItems: 'start',
+    }}>
+      <section style={{ position: 'sticky', top: '12px', alignSelf: 'start', minWidth: 0 }}>
+        <div style={{
+          background: 'var(--color-bg)',
+          paddingBottom: '8px',
+        }}>
+          <label htmlFor="dispensing-queue-search" style={{
+            display: 'block', fontSize: '11px', fontWeight: 600,
+            color: 'var(--color-text-secondary)', marginBottom: '5px',
+          }}>
+            {lang === 'fr' ? 'Rechercher une ordonnance' : 'Find a prescription'}
+          </label>
+          <input
+            id="dispensing-queue-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={lang === 'fr' ? 'Nom, code patient, médecin ou médicament…' : 'Patient, code, doctor or medicine…'}
+            style={{
+              width: '100%', boxSizing: 'border-box', padding: '9px 11px',
+              border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+              background: 'var(--color-surface)', color: 'var(--color-text-primary)',
+              fontSize: '12px', outline: 'none',
+            }}
+          />
+          <p style={{ fontSize: '10px', color: 'var(--color-text-secondary)', margin: '5px 2px 0' }}>
+            {search
+              ? groups.length + ' ' + (lang === 'fr' ? 'patient(s) trouvé(s)' : 'patient(s) found')
+              : prescriptions.length + ' ' + (lang === 'fr' ? 'ordonnance(s) en attente' : 'prescription(s) waiting')}
+          </p>
+        </div>
 
-          return (
-            <div key={first.patient_code || first.patient_name} style={{
-              border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
-              background: 'var(--color-surface)', overflow: 'hidden',
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: '8px',
+          maxHeight: 'calc(100vh - 190px)', overflowY: 'auto', paddingRight: '4px',
+        }}>
+          {groups.length === 0 ? (
+            <div style={{
+              padding: '16px 12px', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)', background: 'var(--color-surface)',
+              fontSize: '12px', color: 'var(--color-text-secondary)',
             }}>
-              {/* Patient header — shown once per patient, not once per
-                  prescription */}
-              <div style={{
-                padding: '10px 14px', borderBottom: '1px solid var(--color-border-subtle)',
-                background: 'var(--color-bg)',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
-                  <p style={{ fontSize: '14px', fontWeight: 600, margin: 0, color: 'var(--color-text-primary)' }}>
-                    {first.patient_name}
-                  </p>
-                  <span style={{
-                    fontSize: '10px', padding: '2px 8px', borderRadius: '999px', flexShrink: 0,
-                    background: meta.bg, color: meta.text,
-                  }}>
-                    {lang === 'fr' ? meta.fr : meta.en}
-                  </span>
-                </div>
-                <p style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
-                  {first.patient_code} · {totalRemaining} {lang === 'fr' ? 'article(s) au total' : 'item(s) total'}
-                  {group.length > 1 && ` · ${group.length} ${lang === 'fr' ? 'ordonnances' : 'prescriptions'}`}
-                </p>
-              </div>
-
-              {/* One row per prescription within the group */}
-              {group.map((rx) => {
-                const remaining = rx.items.filter((it) => it.quantity_dispensed < it.quantity_prescribed).length
-                const isSelected = rx.id === selectedId
-                const rxMeta = STATUS_META[statusOf(rx)]
-                return (
-                  <button
-                    key={rx.id}
-                    onClick={() => setSelectedId(rx.id)}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', cursor: 'pointer',
-                      border: 'none', borderBottom: '1px solid var(--color-border-subtle)',
-                      background: isSelected ? 'var(--color-success-bg)' : 'transparent',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)' }}>
-                        {rx.id.slice(0, 8)}
-                      </span>
-                      {group.length > 1 && (
-                        <span style={{ fontSize: '10px', color: rxMeta.text }}>
-                          {lang === 'fr' ? rxMeta.fr : rxMeta.en}
-                        </span>
-                      )}
-                    </div>
-                    <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
-                      {remaining} article{remaining !== 1 ? 's' : ''} · {rx.prescribing_doctor_name}
-                    </p>
-                  </button>
-                )
-              })}
+              {lang === 'fr' ? 'Aucune correspondance.' : 'No matching prescriptions.'}
             </div>
-          )
-        })}
-      </div>
+          ) : groups.map((group) => {
+            const first = group[0]
+            const totalRemaining = group.reduce(
+              (sum, rx) => sum + rx.items.filter((it) => it.quantity_dispensed < it.quantity_prescribed).length,
+              0
+            )
+            const groupStatus: 'review' | 'partial' | 'pending' =
+              group.some((rx) => statusOf(rx) === 'review') ? 'review'
+              : group.some((rx) => statusOf(rx) === 'partial') ? 'partial'
+              : 'pending'
+            const meta = STATUS_META[groupStatus]
 
-      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1.25rem' }}>
+            return (
+              <div key={first.patient_code || first.patient_name} style={{
+                border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+                background: 'var(--color-surface)', overflow: 'hidden',
+              }}>
+                <div style={{
+                  padding: '9px 12px', borderBottom: '1px solid var(--color-border-subtle)',
+                  background: 'var(--color-bg)',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
+                    <p style={{ fontSize: '13px', fontWeight: 600, margin: 0, color: 'var(--color-text-primary)' }}>
+                      {first.patient_name}
+                    </p>
+                    <span style={{
+                      fontSize: '10px', padding: '2px 7px', borderRadius: '999px', flexShrink: 0,
+                      background: meta.bg, color: meta.text,
+                    }}>
+                      {lang === 'fr' ? meta.fr : meta.en}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
+                    {first.patient_code} · {totalRemaining} {lang === 'fr' ? 'article(s)' : 'item(s)'}
+                    {group.length > 1 && ' · ' + group.length + ' ' + (lang === 'fr' ? 'ordonnances' : 'prescriptions')}
+                  </p>
+                </div>
+
+                {group.map((rx) => {
+                  const remaining = rx.items.filter((it) => it.quantity_dispensed < it.quantity_prescribed).length
+                  const isSelected = rx.id === selectedId
+                  const rxMeta = STATUS_META[statusOf(rx)]
+                  return (
+                    <button
+                      key={rx.id}
+                      onClick={() => setSelectedId(rx.id)}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', cursor: 'pointer',
+                        border: 'none', borderBottom: '1px solid var(--color-border-subtle)',
+                        background: isSelected ? 'var(--color-success-bg)' : 'transparent',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)' }}>
+                          {rx.id.slice(0, 8)}
+                        </span>
+                        {group.length > 1 && (
+                          <span style={{ fontSize: '9px', color: rxMeta.text }}>
+                            {lang === 'fr' ? rxMeta.fr : rxMeta.en}
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
+                        {remaining} {lang === 'fr' ? (remaining === 1 ? 'article' : 'articles') : (remaining === 1 ? 'item' : 'items')} · {rx.prescribing_doctor_name}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      <section style={{
+        position: 'sticky', top: '12px', alignSelf: 'start', minWidth: 0,
+        maxHeight: 'calc(100vh - 24px)', overflowY: 'auto',
+        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-md)', padding: '1.25rem', boxSizing: 'border-box',
+      }}>
         {selected ? (
           <PrescriptionDispenseDetail
             prescription={selected}
@@ -173,7 +225,7 @@ export default function DispensingMasterDetail({
         ) : (
           <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{lang==='fr'?'Sélectionnez une ordonnance à gauche.':'Select a prescription on the left.'}</p>
         )}
-      </div>
+      </section>
     </div>
   )
 }
