@@ -80,14 +80,18 @@ export default async function AdmissionsPage() {
   // many days they've been admitted.
   const { data: occupiedAdmissions } = await supabase
     .from('admissions')
-    .select('bed_id, admission_number, bed_assigned_at, patients(full_name)')
+    .select('id, bed_id, admission_number, bed_assigned_at, patients(full_name, patient_code)')
+    .eq('clinic_id', staff.clinicId)
     .eq('status', 'admitted')
     .not('bed_id', 'is', null)
 
   const bedInfoById = new Map(
     (occupiedAdmissions ?? []).map((a: any) => [a.bed_id, {
+      admission_id: a.id,
       patient_name: a.patients?.full_name,
+      patient_code: a.patients?.patient_code,
       admission_number: a.admission_number,
+      bed_assigned_at: a.bed_assigned_at,
       days_admitted: a.bed_assigned_at ? Math.max(1, Math.ceil((Date.now() - new Date(a.bed_assigned_at).getTime()) / 86400000)) : 1,
     }])
   )
