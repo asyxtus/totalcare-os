@@ -181,3 +181,34 @@ export async function toggleBedStatus(bedId: string, newStatus: string) {
   revalidatePath('/admissions')
   return { success: true }
 }
+
+
+export async function releaseOrphanBedAction(bedId: string) {
+  const staff = await getCurrentStaff()
+  const supabase = await createClient()
+
+  const { data: activeAdmission, error: admissionError } = await supabase
+    .from('admissions')
+    .select('id, admission_number, patients(full_name)')
+    .eq('clinic_id', staff.clinicId)
+    .eq('bed_id', bedId)
+    .eq('status', 'admitted')
+    .maybeSingle()
+
+  if (admissionError) return friendlyError('releaseOrphanBed', 'Impossible de vérifier ce lit.', admissionError)
+  if (activeAdmission) {
+    return { error: 'Ce lit est lié à une admission active. Utilisez la sortie du patient.' }
+  }
+
+  const { error } = await supabase
+    .from('beds')
+    .update({ status: 'available' })
+    .eq('id', bedId)
+    .eq('clinic_id', staff.clinicId)
+    .eq('status', 'occupied')
+
+  if (error) return friendlyError('releaseOrphanBed', 'Impossible de libérer ce lit.', error)
+
+  revalidatePath('/admissions')
+  return { success: true }
+}
